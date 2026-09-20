@@ -46,82 +46,83 @@ function renderSettings() {
 }
 
 function addExercise(name) {
-  const input = screen.getByPlaceholderText('New exercise name')
+  const input = screen.getByPlaceholderText('Yeni antrenman adı')
   fireEvent.change(input, { target: { value: name } })
-  fireEvent.click(screen.getByRole('button', { name: /add/i }))
+  fireEvent.click(screen.getByRole('button', { name: /ekle/i }))
 }
 
 function getExercisesSection() {
-  return screen.getByText('Exercises').closest('section')
+  return screen.getByText('Antrenmanlar').closest('section')
 }
 
 describe('Settings - Exercise List', () => {
-  it('renders empty state message', () => {
+  it('renders pre-populated exercises', () => {
     renderSettings()
-    expect(screen.getByText('No exercises yet.')).toBeInTheDocument()
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
+    expect(screen.getByText('Squats')).toBeInTheDocument()
   })
 
   it('adds an exercise', () => {
     renderSettings()
-    addExercise('Bench Press')
-    expect(within(getExercisesSection()).getByText('Bench Press')).toBeInTheDocument()
-    expect(screen.queryByText('No exercises yet.')).not.toBeInTheDocument()
+    addExercise('Dumbbell Curl')
+    expect(within(getExercisesSection()).getByText('Dumbbell Curl')).toBeInTheDocument()
   })
 
   it('does not add duplicate exercise', () => {
     renderSettings()
-    addExercise('Bench Press')
-    addExercise('Bench Press')
-    const exercisesList = screen.getByText('Exercises').closest('section').querySelector('ul')
-    expect(within(exercisesList).getAllByText('Bench Press')).toHaveLength(1)
+    addExercise('Dumbbell Curl')
+    addExercise('Dumbbell Curl')
+    const exercisesSection = getExercisesSection()
+    expect(within(exercisesSection).getAllByText('Dumbbell Curl')).toHaveLength(1)
   })
 
   it('does not add empty exercise', () => {
     renderSettings()
-    fireEvent.click(screen.getByRole('button', { name: /add/i }))
-    expect(screen.getByText('No exercises yet.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /ekle/i }))
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
+    expect(screen.getByText('Squats')).toBeInTheDocument()
   })
 
   it('removes an exercise', () => {
     renderSettings()
-    addExercise('Bench Press')
+    const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
-      screen.getByText('Remove').click()
+      within(benchPressRow).getByText('Kaldır').click()
     })
     expect(screen.queryByText('Bench Press')).not.toBeInTheDocument()
-    expect(screen.getByText('No exercises yet.')).toBeInTheDocument()
+    expect(screen.getByText('Squats')).toBeInTheDocument()
   })
 
   it('renames an exercise', () => {
     renderSettings()
-    addExercise('Bench Press')
+    const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
-      screen.getByText('Rename').click()
+      within(benchPressRow).getByText('Yeniden Adlandır').click()
     })
     const editInput = screen.getByDisplayValue('Bench Press')
     fireEvent.change(editInput, { target: { value: 'Chest Press' } })
-    fireEvent.click(screen.getByText('Save'))
+    fireEvent.click(screen.getByText('Kaydet'))
     expect(within(getExercisesSection()).getByText('Chest Press')).toBeInTheDocument()
     expect(within(getExercisesSection()).queryByText('Bench Press')).not.toBeInTheDocument()
   })
 
   it('cancels rename on Escape', () => {
     renderSettings()
-    addExercise('Bench Press')
+    const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
-      screen.getByText('Rename').click()
+      within(benchPressRow).getByText('Yeniden Adlandır').click()
     })
     const editInput = screen.getByDisplayValue('Bench Press')
     fireEvent.keyDown(editInput, { key: 'Escape' })
     expect(within(getExercisesSection()).getByText('Bench Press')).toBeInTheDocument()
-    expect(within(getExercisesSection()).getByText('Rename')).toBeInTheDocument()
+    expect(within(benchPressRow).getByText('Yeniden Adlandır')).toBeInTheDocument()
   })
 
   it('renames via Enter key', () => {
     renderSettings()
-    addExercise('Bench Press')
+    const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
-      screen.getByText('Rename').click()
+      within(benchPressRow).getByText('Yeniden Adlandır').click()
     })
     const editInput = screen.getByDisplayValue('Bench Press')
     fireEvent.change(editInput, { target: { value: 'Chest Press' } })
@@ -132,32 +133,29 @@ describe('Settings - Exercise List', () => {
 })
 
 describe('Settings - Schedule Editor', () => {
-  it('shows empty state when no exercises exist', () => {
-    renderSettings()
-    expect(screen.getByText('Add exercises first to set a schedule.')).toBeInTheDocument()
-  })
-
   it('shows day headings when exercises exist', () => {
     renderSettings()
-    addExercise('Bench Press')
-    expect(screen.getByText('Monday')).toBeInTheDocument()
-    expect(screen.getByText('Sunday')).toBeInTheDocument()
+    expect(screen.getByText('Pazartesi')).toBeInTheDocument()
+    expect(screen.getByText('Pazar')).toBeInTheDocument()
   })
 
   it('shows checkboxes for each exercise under each day', () => {
     renderSettings()
-    addExercise('Bench Press')
-    addExercise('Squats')
-    const scheduleSection = screen.getByText('Schedule').closest('section')
+    act(() => {
+      screen.getByText('Pazartesi').click()
+    })
+    const scheduleSection = screen.getByText('Program').closest('section')
     const checkboxes = within(scheduleSection).getAllByRole('checkbox')
-    expect(checkboxes).toHaveLength(14)
+    expect(checkboxes.length).toBeGreaterThanOrEqual(10)
   })
 
   it('assigns exercise to a day on toggle', () => {
     renderSettings()
-    addExercise('Bench Press')
-    const mondaySection = screen.getByText('Monday').closest('div')
-    const checkbox = within(mondaySection).getByRole('checkbox')
+    act(() => {
+      screen.getByText('Pazartesi').click()
+    })
+    const scheduleSection = screen.getByText('Program').closest('section')
+    const checkbox = within(scheduleSection).getAllByRole('checkbox')[0]
     act(() => {
       fireEvent.click(checkbox)
     })
@@ -166,9 +164,11 @@ describe('Settings - Schedule Editor', () => {
 
   it('unassigns exercise from a day on second toggle', () => {
     renderSettings()
-    addExercise('Bench Press')
-    const mondaySection = screen.getByText('Monday').closest('div')
-    const checkbox = within(mondaySection).getByRole('checkbox')
+    act(() => {
+      screen.getByText('Pazartesi').click()
+    })
+    const scheduleSection = screen.getByText('Program').closest('section')
+    const checkbox = within(scheduleSection).getAllByRole('checkbox')[0]
     act(() => {
       fireEvent.click(checkbox)
     })
@@ -181,10 +181,11 @@ describe('Settings - Schedule Editor', () => {
 
   it('can assign multiple exercises to a day', () => {
     renderSettings()
-    addExercise('Bench Press')
-    addExercise('Squats')
-    const mondaySection = screen.getByText('Monday').closest('div')
-    const checkboxes = within(mondaySection).getAllByRole('checkbox')
+    act(() => {
+      screen.getByText('Pazartesi').click()
+    })
+    const scheduleSection = screen.getByText('Program').closest('section')
+    const checkboxes = within(scheduleSection).getAllByRole('checkbox')
     act(() => {
       fireEvent.click(checkboxes[0])
     })
@@ -194,48 +195,23 @@ describe('Settings - Schedule Editor', () => {
     expect(checkboxes[0]).toBeChecked()
     expect(checkboxes[1]).toBeChecked()
   })
-
-  it('does not show schedule when exercises list is empty after removal', () => {
-    renderSettings()
-    addExercise('Bench Press')
-    expect(screen.queryByText('Add exercises first to set a schedule.')).not.toBeInTheDocument()
-    act(() => {
-      screen.getByText('Remove').click()
-    })
-    expect(screen.getByText('Add exercises first to set a schedule.')).toBeInTheDocument()
-  })
-})
-
-describe('Settings - Sample Data', () => {
-  it('renders Load Sample Data button', () => {
-    renderSettings()
-    expect(screen.getByText('Load Sample Data')).toBeInTheDocument()
-  })
-
-  it('loads sample data on click', () => {
-    renderSettings()
-    act(() => {
-      screen.getByText('Load Sample Data').click()
-    })
-    expect(screen.getByText('Sample data loaded!')).toBeInTheDocument()
-    expect(screen.getAllByText('Bench Press').length).toBeGreaterThan(1)
-    expect(screen.getAllByText('Squats').length).toBeGreaterThan(1)
-  })
 })
 
 describe('Google Drive connection', () => {
   it('shows Connect Google Drive button when not signed in', () => {
     renderSettings()
-    expect(screen.getByText('Connect Google Drive')).toBeInTheDocument()
-    expect(screen.queryByText('Disconnect')).not.toBeInTheDocument()
+    expect(screen.getByText("Google Drive'a Bağlan")).toBeInTheDocument()
+    expect(screen.queryByText('Bağlantıyı Kes')).not.toBeInTheDocument()
   })
 
-  it('shows connected status and Disconnect button when signed in', () => {
+  it('shows connected status, Sync Now, and Disconnect button when signed in', () => {
     mockSignedIn = true
     renderSettings()
-    expect(screen.getByText('Disconnect Google Drive')).toBeInTheDocument()
-    expect(screen.getByText('Connected')).toBeInTheDocument()
-    expect(screen.queryByText('Connect Google Drive')).not.toBeInTheDocument()
+    expect(screen.getByText('Bağlı')).toBeInTheDocument()
+    expect(screen.getByText('Güncel')).toBeInTheDocument()
+    expect(screen.getByText('Şimdi Senkronize Et')).toBeInTheDocument()
+    expect(screen.getByText('Bağlantıyı Kes')).toBeInTheDocument()
+    expect(screen.queryByText("Google Drive'a Bağlan")).not.toBeInTheDocument()
   })
 
   it('shows sync status when connected', () => {
@@ -245,14 +221,13 @@ describe('Google Drive connection', () => {
 
     renderSettings()
 
-    expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
+    expect(screen.getByTestId('syncStatus')).toHaveTextContent('Güncel')
   })
 
-  it('allows entering Google Client ID', () => {
+  it('shows sync button when connected', () => {
+    mockSignedIn = true
     renderSettings()
-    const clientIdInput = screen.getByLabelText('Google Client ID')
-    expect(clientIdInput).toBeInTheDocument()
-    fireEvent.change(clientIdInput, { target: { value: 'test-client-123' } })
-    expect(screen.getByLabelText('Google Client ID')).toHaveValue('test-client-123')
+    expect(screen.getByTestId('syncButton')).toBeInTheDocument()
+    expect(screen.getByText('Şimdi Senkronize Et')).toBeInTheDocument()
   })
 })

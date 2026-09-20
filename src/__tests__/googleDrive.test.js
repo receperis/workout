@@ -10,6 +10,7 @@ import {
   isSignedIn,
   resetAuth,
   initTokenClient,
+  restoreSession,
   findOrCreateFile,
   loadFromDrive,
   saveToDrive,
@@ -577,6 +578,7 @@ describe('saveToDrive', () => {
       'Drive API error 400',
     )
   })
+})
 
 describe('driveFetch 401 handling', () => {
   function mockFetch(handler) {
@@ -776,5 +778,71 @@ describe('network error handling', () => {
     await expect(saveToDrive('file-1', { exercises: [] })).rejects.toThrow(
       'Network error',
     )
+  })
+})
+
+describe('restoreSession', () => {
+  function setupGoogleMock() {
+    let capturedCallback
+    const requestAccessToken = vi.fn()
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn((opts) => {
+            capturedCallback = opts.callback
+            return { requestAccessToken, callback: null }
+          }),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    return { requestAccessToken, getCb: () => capturedCallback }
+  }
+
+  it('rejects when GIS is not loaded', async () => {
+    await expect(restoreSession('client-id')).rejects.toThrow('Google Identity Services not loaded')
+  })
+
+  it('rejects when client ID is missing', async () => {
+    setupGoogleMock()
+    await expect(restoreSession('')).rejects.toThrow('Missing required parameter client_id')
+  })
+
+  it('requests access token with prompt none for silent restore', async () => {
+    const { requestAccessToken } = setupGoogleMock()
+    const promise = restoreSession('client-id')
+    expect(window.google.accounts.oauth2.initTokenClient).toHaveBeenCalledWith({
+      client_id: 'client-id',
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: expect.any(Function),
+    })
+    expect(requestAccessToken).toHaveBeenCalledWith({ prompt: 'none' })
+
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'restored-token', error: undefined })
+    const token = await promise
+    expect(token).toBe('restored-token')
+    expect(getAccessToken()).toBe('restored-token')
+    expect(isSignedIn()).toBe(true)
+  })
+
+  it('rejects when silent restore fails', async () => {
+    setupGoogleMock()
+    const promise = restoreSession('client-id')
+
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ error: 'login_required' })
+    await expect(promise).rejects.toThrow('login_required')
+    expect(isSignedIn()).toBe(false)
+  })
+
+  it('clears token client on failure', async () => {
+    setupGoogleMock()
+    const promise = restoreSession('client-id')
+
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ error: 'login_required' })
+    await expect(promise).rejects.toThrow()
+    expect(getAccessToken()).toBeNull()
   })
 })

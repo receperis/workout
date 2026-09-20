@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, screen, cleanup, act } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { WorkoutProvider, useWorkout } from '../context/WorkoutContext'
 
 afterEach(() => {
   cleanup()
+})
+
+beforeEach(() => {
+  localStorage.clear()
 })
 
 function TestComponent() {
@@ -18,12 +22,12 @@ function TestComponent() {
       <button onClick={() => dispatch({ type: 'ADD_EXERCISE', payload: 'Bench Press' })}>
         Add Exercise
       </button>
-      <button onClick={() => dispatch({ type: 'REMOVE_EXERCISE', payload: 'Bench Press' })}>
+      <button onClick={() => dispatch({ type: 'REMOVE_EXERCISE', payload: 1 })}>
         Remove Exercise
       </button>
       <button
         onClick={() =>
-          dispatch({ type: 'RENAME_EXERCISE', payload: { oldName: 'Bench Press', newName: 'Chest Press' } })
+          dispatch({ type: 'RENAME_EXERCISE', payload: { id: 1, newName: 'Chest Press' } })
         }
       >
         Rename Exercise
@@ -36,7 +40,7 @@ function TestComponent() {
               id: 'test-id',
               date: '2026-09-14',
               day: 'Monday',
-              sets: [{ exercise: 'Bench Press', reps: 15, weight: 50 }],
+              sets: [{ exerciseId: 1, reps: 15, weight: 50 }],
             },
           })
         }
@@ -47,7 +51,7 @@ function TestComponent() {
         onClick={() =>
           dispatch({
             type: 'SET_SCHEDULE',
-            payload: { Monday: ['Bench Press'], Wednesday: ['Squats'] },
+            payload: { Monday: [1], Wednesday: [2] },
           })
         }
       >
@@ -58,8 +62,8 @@ function TestComponent() {
           dispatch({
             type: 'LOAD_DATA',
             payload: {
-              exercises: ['Squats'],
-              schedule: { Friday: ['Squats'] },
+              exercises: [{ id: 1, name: 'Squats' }],
+              schedule: { Friday: [1] },
               sessions: [],
             },
           })
@@ -80,9 +84,11 @@ function renderWithProvider() {
 }
 
 describe('WorkoutContext', () => {
-  it('provides initial empty state', () => {
+  it('provides initial state with pre-populated exercises', () => {
     renderWithProvider()
-    expect(screen.getByTestId('exercises')).toHaveTextContent('[]')
+    const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
+    expect(exercises).toHaveLength(10)
+    expect(exercises[0]).toEqual({ id: 1, name: 'Bench Press' })
     expect(screen.getByTestId('schedule')).toHaveTextContent('{}')
     expect(screen.getByTestId('sessions')).toHaveTextContent('[]')
   })
@@ -92,29 +98,29 @@ describe('WorkoutContext', () => {
     act(() => {
       screen.getByText('Add Exercise').click()
     })
-    expect(screen.getByTestId('exercises')).toHaveTextContent('["Bench Press"]')
+    const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
+    expect(exercises).toHaveLength(11)
+    expect(exercises[10]).toEqual({ id: 11, name: 'Bench Press' })
   })
 
   it('handles REMOVE_EXERCISE', () => {
     renderWithProvider()
     act(() => {
-      screen.getByText('Add Exercise').click()
-    })
-    act(() => {
       screen.getByText('Remove Exercise').click()
     })
-    expect(screen.getByTestId('exercises')).toHaveTextContent('[]')
+    const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
+    expect(exercises).toHaveLength(9)
+    expect(exercises.find((e) => e.id === 1)).toBeUndefined()
   })
 
   it('handles RENAME_EXERCISE', () => {
     renderWithProvider()
     act(() => {
-      screen.getByText('Add Exercise').click()
-    })
-    act(() => {
       screen.getByText('Rename Exercise').click()
     })
-    expect(screen.getByTestId('exercises')).toHaveTextContent('["Chest Press"]')
+    const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
+    expect(exercises).toHaveLength(10)
+    expect(exercises[0]).toEqual({ id: 1, name: 'Chest Press' })
   })
 
   it('handles LOG_SESSION', () => {
@@ -123,7 +129,7 @@ describe('WorkoutContext', () => {
       screen.getByText('Log Session').click()
     })
     expect(screen.getByTestId('sessions')).toHaveTextContent(
-      '[{"id":"test-id","date":"2026-09-14","day":"Monday","sets":[{"exercise":"Bench Press","reps":15,"weight":50}]}]',
+      '[{"id":"test-id","date":"2026-09-14","day":"Monday","sets":[{"exerciseId":1,"reps":15,"weight":50}]}]',
     )
   })
 
@@ -133,7 +139,7 @@ describe('WorkoutContext', () => {
       screen.getByText('Set Schedule').click()
     })
     expect(screen.getByTestId('schedule')).toHaveTextContent(
-      '{"Monday":["Bench Press"],"Wednesday":["Squats"]}',
+      '{"Monday":[1],"Wednesday":[2]}',
     )
   })
 
@@ -142,8 +148,8 @@ describe('WorkoutContext', () => {
     act(() => {
       screen.getByText('Load Data').click()
     })
-    expect(screen.getByTestId('exercises')).toHaveTextContent('["Squats"]')
-    expect(screen.getByTestId('schedule')).toHaveTextContent('{"Friday":["Squats"]}')
+    expect(screen.getByTestId('exercises')).toHaveTextContent('[{"id":1,"name":"Squats"}]')
+    expect(screen.getByTestId('schedule')).toHaveTextContent('{"Friday":[1]}')
     expect(screen.getByTestId('sessions')).toHaveTextContent('[]')
   })
 

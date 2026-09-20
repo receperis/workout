@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
-import { DAYS_OF_WEEK, PYRAMID_REPS } from '../types'
+import { DAYS_OF_WEEK, PYRAMID_REPS, exerciseNameById } from '../types'
 import WeightProgression from '../components/WeightProgression'
 import Sparkline from '../components/Sparkline'
 
@@ -12,26 +12,26 @@ const REP_HEX = {
   7: '#8b5cf6',
 }
 
-function ExerciseSummary({ exercise, sessions }) {
+function ExerciseSummary({ exerciseId, sessions }) {
   const filteredSessions = sessions.filter((s) =>
-    s.sets.some((set) => set.exercise === exercise),
+    s.sets.some((set) => set.exerciseId === exerciseId),
   )
 
   if (filteredSessions.length === 0) return null
 
   const lastSession = filteredSessions[filteredSessions.length - 1]
-  const lastSets = lastSession.sets.filter((s) => s.exercise === exercise)
+  const lastSets = lastSession.sets.filter((s) => s.exerciseId === exerciseId)
 
   const tiersWithData = PYRAMID_REPS.filter((reps) =>
     filteredSessions.some((s) =>
-      s.sets.some((set) => set.exercise === exercise && set.reps === reps && set.weight > 0),
+      s.sets.some((set) => set.exerciseId === exerciseId && set.reps === reps && set.weight > 0),
     ),
   )
 
   const sparkData = (reps) =>
     filteredSessions
       .map((s) => {
-        const set = s.sets.find((st) => st.exercise === exercise && st.reps === reps)
+        const set = s.sets.find((st) => st.exerciseId === exerciseId && st.reps === reps)
         return set?.weight || 0
       })
       .filter((v) => v > 0)
@@ -59,14 +59,14 @@ function ExerciseSummary({ exercise, sessions }) {
 }
 
 function Progress() {
-  const { state: { schedule, sessions } } = useWorkout()
+  const { state: { exercises, schedule, sessions } } = useWorkout()
 
   const daysWithExercises = DAYS_OF_WEEK.filter(
     (day) => schedule[day] && schedule[day].length > 0,
   )
 
   const [selectedDay, setSelectedDay] = useState(() => {
-    const today = new Date().toLocaleString('en-US', { weekday: 'long' })
+    const today = new Date().toLocaleString('tr-TR', { weekday: 'long' })
     return daysWithExercises.includes(today) ? today : daysWithExercises[0] || ''
   })
 
@@ -75,19 +75,19 @@ function Progress() {
   const currentDay = daysWithExercises.includes(selectedDay) ? selectedDay : daysWithExercises[0] || ''
   const exercisesForDay = currentDay ? (schedule[currentDay] || []) : []
 
-  const hasSessionData = (exercise) =>
-    sessions.some((s) => s.sets.some((set) => set.exercise === exercise))
+  const hasSessionData = (exerciseId) =>
+    sessions.some((s) => s.sets.some((set) => set.exerciseId === exerciseId))
 
   if (daysWithExercises.length === 0) {
     return (
       <div>
-        <h1 style={{ color: 'var(--text-heading)' }}>Progress</h1>
+        <h1 style={{ color: 'var(--text-heading)' }}>İlerleme</h1>
         <div
           className="mt-4 rounded-xl p-6 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
         >
           <p style={{ color: 'var(--text-muted)' }}>
-            No exercises scheduled yet. Go to Settings to set up your workout days.
+            Henüz antrenman planlanmamış. Antrenman günlerinizi ayarlamak için Ayarlar'a gidin.
           </p>
         </div>
       </div>
@@ -96,7 +96,7 @@ function Progress() {
 
   return (
     <div className="space-y-5">
-      <h1 style={{ color: 'var(--text-heading)' }}>Progress</h1>
+      <h1 style={{ color: 'var(--text-heading)' }}>İlerleme</h1>
 
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
         {daysWithExercises.map((day) => {
@@ -122,13 +122,14 @@ function Progress() {
         <p style={{ color: 'var(--text-muted)' }}>No exercises assigned to {currentDay}.</p>
       ) : (
         <div className="space-y-3">
-          {exercisesForDay.map((exercise) => {
-            const expanded = expandedExercise === exercise
-            const hasData = hasSessionData(exercise)
+          {exercisesForDay.map((exerciseId) => {
+            const expanded = expandedExercise === exerciseId
+            const hasData = hasSessionData(exerciseId)
+            const name = exerciseNameById(exercises, exerciseId)
 
             return (
               <div
-                key={exercise}
+                key={exerciseId}
                 className="rounded-xl overflow-hidden"
                 style={{
                   background: 'var(--surface)',
@@ -137,16 +138,16 @@ function Progress() {
                 }}
               >
                 <button
-                  onClick={() => setExpandedExercise(expanded ? null : exercise)}
+                  onClick={() => setExpandedExercise(expanded ? null : exerciseId)}
                   className="w-full flex items-center justify-between px-5 py-4 text-left transition-colors"
                   style={{ background: 'var(--surface)' }}
                 >
                   <div className="min-w-0 flex-1">
                     <h3 style={{ color: 'var(--text-heading)', fontSize: '16px', fontWeight: 600 }}>
-                      {exercise}
+                      {name}
                     </h3>
                     {hasData && !expanded && (
-                      <ExerciseSummary exercise={exercise} sessions={sessions} />
+                      <ExerciseSummary exerciseId={exerciseId} sessions={sessions} />
                     )}
                   </div>
                   <svg
@@ -166,11 +167,11 @@ function Progress() {
                   <div className="px-5 pb-5" style={{ borderTop: '1px solid var(--border)' }}>
                     {hasData ? (
                       <div className="pt-4">
-                        <WeightProgression exercise={exercise} />
+                        <WeightProgression exerciseId={exerciseId} />
                       </div>
                     ) : (
                       <p className="pt-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-                        No session data yet for {exercise}.
+                        {name} için henüz veri yok.
                       </p>
                     )}
                   </div>

@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import { DAYS_OF_WEEK } from '../types'
-import { generateSeedData } from '../data/seedData'
 
 function SectionCard({ title, children }) {
   return (
@@ -29,67 +28,51 @@ function SectionCard({ title, children }) {
 }
 
 function Settings() {
-  const { state, dispatch, signedIn, signIn, signOut, syncStatus } = useWorkout()
+  const { state, dispatch, signedIn, signIn, signOut, syncNow, syncStatus } = useWorkout()
   const [newExercise, setNewExercise] = useState('')
-  const [editingIndex, setEditingIndex] = useState(-1)
+  const [editingId, setEditingId] = useState(-1)
   const [editValue, setEditValue] = useState('')
-  const [clientId, setClientId] = useState(
-    () => localStorage.getItem('google-drive-client-id')
-      || import.meta.env.VITE_GOOGLE_CLIENT_ID
-      || '',
-  )
-  const [seedLoaded, setSeedLoaded] = useState(false)
   const [expandedDay, setExpandedDay] = useState(null)
-
-  useEffect(() => {
-    if (clientId) localStorage.setItem('google-drive-client-id', clientId)
-  }, [clientId])
 
   function handleAdd(e) {
     e.preventDefault()
     const name = newExercise.trim()
-    if (!name || state.exercises.includes(name)) return
+    if (!name || state.exercises.some((ex) => ex.name === name)) return
     dispatch({ type: 'ADD_EXERCISE', payload: name })
     setNewExercise('')
   }
 
-  function handleRemove(name) {
-    dispatch({ type: 'REMOVE_EXERCISE', payload: name })
+  function handleRemove(id) {
+    dispatch({ type: 'REMOVE_EXERCISE', payload: id })
   }
 
-  function startRename(index) {
-    setEditingIndex(index)
-    setEditValue(state.exercises[index])
+  function startRename(id, currentName) {
+    setEditingId(id)
+    setEditValue(currentName)
   }
 
-  function handleRename(index) {
-    const oldName = state.exercises[index]
+  function handleRename(id) {
     const newName = editValue.trim()
-    if (!newName || newName === oldName || state.exercises.includes(newName)) {
-      setEditingIndex(-1)
+    const oldName = state.exercises.find((e) => e.id === id)?.name
+    if (!newName || newName === oldName || state.exercises.some((e) => e.name === newName)) {
+      setEditingId(-1)
       return
     }
-    dispatch({ type: 'RENAME_EXERCISE', payload: { oldName, newName } })
-    setEditingIndex(-1)
-  }
-
-  function handleLoadSampleData() {
-    const data = generateSeedData()
-    dispatch({ type: 'LOAD_DATA', payload: data })
-    setSeedLoaded(true)
+    dispatch({ type: 'RENAME_EXERCISE', payload: { id, newName } })
+    setEditingId(-1)
   }
 
   return (
     <div className="space-y-4">
-      <h1 style={{ color: 'var(--text-heading)' }}>Settings</h1>
+      <h1 style={{ color: 'var(--text-heading)' }}>Ayarlar</h1>
 
-      <SectionCard title="Exercises">
+      <SectionCard title="Antrenmanlar">
         <form onSubmit={handleAdd} className="flex gap-2 mb-4">
           <input
             type="text"
             value={newExercise}
             onChange={(e) => setNewExercise(e.target.value)}
-            placeholder="New exercise name"
+            placeholder="Yeni antrenman adı"
             className="flex-1 rounded-lg px-3 py-2.5 text-sm"
             style={{
               background: 'var(--surface-raised)',
@@ -102,29 +85,29 @@ function Settings() {
             className="rounded-lg px-5 py-2.5 text-sm font-semibold"
             style={{ background: 'var(--accent)', color: '#fff' }}
           >
-            Add
+            Ekle
           </button>
         </form>
 
         {state.exercises.length === 0 ? (
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No exercises yet.</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Henüz antrenman yok.</p>
         ) : (
           <div className="space-y-2">
-            {state.exercises.map((name, index) => (
+            {state.exercises.map((exercise) => (
               <div
-                key={name}
+                key={exercise.id}
                 className="flex items-center gap-2 rounded-lg px-3 py-2.5"
                 style={{ background: 'var(--surface-raised)' }}
               >
-                {editingIndex === index ? (
+                {editingId === exercise.id ? (
                   <>
                     <input
                       type="text"
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleRename(index)
-                        if (e.key === 'Escape') setEditingIndex(-1)
+                        if (e.key === 'Enter') handleRename(exercise.id)
+                        if (e.key === 'Escape') setEditingId(-1)
                       }}
                       className="flex-1 rounded-lg px-3 py-2 text-sm"
                       style={{
@@ -135,36 +118,36 @@ function Settings() {
                       autoFocus
                     />
                     <button
-                      onClick={() => handleRename(index)}
+                      onClick={() => handleRename(exercise.id)}
                       className="text-sm font-medium px-3 py-1.5 rounded-lg"
                       style={{ color: '#059669' }}
                     >
-                      Save
+                      Kaydet
                     </button>
                     <button
-                      onClick={() => setEditingIndex(-1)}
+                      onClick={() => setEditingId(-1)}
                       className="text-sm font-medium px-3 py-1.5 rounded-lg"
                       style={{ color: 'var(--text-muted)' }}
                     >
-                      Cancel
+                      İptal
                     </button>
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 text-sm" style={{ color: 'var(--text-heading)' }}>{name}</span>
+                    <span className="flex-1 text-sm" style={{ color: 'var(--text-heading)' }}>{exercise.name}</span>
                     <button
-                      onClick={() => startRename(index)}
+                      onClick={() => startRename(exercise.id, exercise.name)}
                       className="text-sm font-medium px-3 py-1.5 rounded-lg"
                       style={{ color: 'var(--accent)' }}
                     >
-                      Rename
+                      Yeniden Adlandır
                     </button>
                     <button
-                      onClick={() => handleRemove(name)}
+                      onClick={() => handleRemove(exercise.id)}
                       className="text-sm font-medium px-3 py-1.5 rounded-lg"
                       style={{ color: '#ef4444' }}
                     >
-                      Remove
+                      Kaldır
                     </button>
                   </>
                 )}
@@ -174,10 +157,10 @@ function Settings() {
         )}
       </SectionCard>
 
-      <SectionCard title="Schedule">
+      <SectionCard title="Program">
         {state.exercises.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Add exercises first to set a schedule.
+            Önce antrenman ekleyin, sonra program oluşturun.
           </p>
         ) : (
           <div className="space-y-2">
@@ -224,10 +207,10 @@ function Settings() {
                   {expanded && (
                     <div className="p-3 flex flex-wrap gap-2" style={{ background: 'var(--surface)' }}>
                       {state.exercises.map((exercise) => {
-                        const checked = dayExercises.includes(exercise)
+                        const checked = dayExercises.includes(exercise.id)
                         return (
                           <label
-                            key={exercise}
+                            key={exercise.id}
                             className="flex items-center gap-1.5 text-sm rounded-lg px-3 py-2 cursor-pointer select-none transition-colors"
                             style={{
                               background: checked ? 'var(--accent)' + '15' : 'var(--surface-raised)',
@@ -241,8 +224,8 @@ function Settings() {
                               onChange={() => {
                                 const current = state.schedule[day] || []
                                 const next = checked
-                                  ? current.filter((e) => e !== exercise)
-                                  : [...current, exercise]
+                                  ? current.filter((id) => id !== exercise.id)
+                                  : [...current, exercise.id]
                                 dispatch({ type: 'SET_SCHEDULE', payload: { ...state.schedule, [day]: next } })
                               }}
                               className="sr-only"
@@ -260,7 +243,7 @@ function Settings() {
                                 </svg>
                               )}
                             </div>
-                            {exercise}
+                            {exercise.name}
                           </label>
                         )
                       })}
@@ -273,70 +256,53 @@ function Settings() {
         )}
       </SectionCard>
 
-      <SectionCard title="Sample Data">
-        <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
-          Load 2 weeks of sample workout data to see how charts and progress tracking work.
-        </p>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleLoadSampleData}
-            className="rounded-lg px-5 py-2.5 text-sm font-semibold"
-            style={{
-              background: 'var(--surface-raised)',
-              color: 'var(--text-heading)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            Load Sample Data
-          </button>
-          {seedLoaded && (
-            <span className="text-sm font-medium" style={{ color: '#059669' }}>Loaded!</span>
-          )}
-        </div>
-      </SectionCard>
-
       <SectionCard title="Google Drive">
         {signedIn ? (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => signOut()}
-              className="rounded-lg px-4 py-2.5 text-sm font-semibold"
-              style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca' }}
-            >
-              Disconnect
-            </button>
-            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Connected</span>
-            <span
-              className="text-sm font-medium"
-              style={{ color: syncStatus === 'syncing' ? '#059669' : 'var(--text-muted)' }}
-              data-testid="syncStatus"
-            >
-              {syncStatus}
-            </span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Bağlı</span>
+              <span
+                className="text-sm font-medium"
+                style={{
+                  color: syncStatus === 'syncing' ? '#059669' : syncStatus === 'error' ? '#ef4444' : 'var(--text-muted)',
+                }}
+                data-testid="syncStatus"
+              >
+                {syncStatus === 'syncing' ? 'Senkronize ediliyor...' : syncStatus === 'error' ? 'Senkronizasyon hatası' : 'Güncel'}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => syncNow()}
+                disabled={syncStatus === 'syncing'}
+                className="rounded-lg px-4 py-2.5 text-sm font-semibold"
+                style={{
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text-heading)',
+                  border: '1px solid var(--border)',
+                  opacity: syncStatus === 'syncing' ? 0.6 : 1,
+                }}
+                data-testid="syncButton"
+              >
+                {syncStatus === 'syncing' ? 'Senkronize ediliyor...' : 'Şimdi Senkronize Et'}
+              </button>
+              <button
+                onClick={() => signOut()}
+                className="rounded-lg px-4 py-2.5 text-sm font-semibold"
+                style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca' }}
+              >
+                Bağlantıyı Kes
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="Google Client ID"
-              aria-label="Google Client ID"
-              className="w-full rounded-lg px-3 py-2.5 text-sm"
-              style={{
-                background: 'var(--surface-raised)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-heading)',
-              }}
-            />
-            <button
-              onClick={() => signIn(clientId || '')}
-              className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
-              style={{ background: '#059669', color: '#fff' }}
-            >
-              Connect Google Drive
-            </button>
-          </div>
+          <button
+            onClick={() => signIn()}
+            className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
+            style={{ background: '#059669', color: '#fff' }}
+          >
+            Google Drive'a Bağlan
+          </button>
         )}
       </SectionCard>
     </div>

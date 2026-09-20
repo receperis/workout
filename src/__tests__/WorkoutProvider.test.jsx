@@ -28,8 +28,8 @@ function TestComponent() {
 describe('WorkoutProvider localStorage integration', () => {
   it('loads initial state from localStorage', () => {
     const savedData = {
-      exercises: ['Bench Press', 'Squats'],
-      schedule: { Monday: ['Bench Press'] },
+      exercises: [{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squats' }],
+      schedule: { Monday: [1] },
       sessions: [],
     }
     localStorage.setItem('workout-data', JSON.stringify(savedData))
@@ -40,7 +40,7 @@ describe('WorkoutProvider localStorage integration', () => {
       </WorkoutProvider>,
     )
 
-    expect(screen.getByTestId('exercises')).toHaveTextContent('["Bench Press","Squats"]')
+    expect(screen.getByTestId('exercises')).toHaveTextContent('[{"id":1,"name":"Bench Press"},{"id":2,"name":"Squats"}]')
   })
 
   it('falls back to empty state when localStorage is invalid', () => {
@@ -52,7 +52,9 @@ describe('WorkoutProvider localStorage integration', () => {
       </WorkoutProvider>,
     )
 
-    expect(screen.getByTestId('exercises')).toHaveTextContent('[]')
+    const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
+    expect(exercises).toHaveLength(10)
+    expect(exercises[0]).toEqual({ id: 1, name: 'Bench Press' })
   })
 
   it('falls back to empty state when localStorage is empty', () => {
@@ -62,7 +64,8 @@ describe('WorkoutProvider localStorage integration', () => {
       </WorkoutProvider>,
     )
 
-    expect(screen.getByTestId('exercises')).toHaveTextContent('[]')
+    const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
+    expect(exercises).toHaveLength(10)
   })
 
   it('persists state changes to localStorage', () => {
@@ -77,7 +80,8 @@ describe('WorkoutProvider localStorage integration', () => {
     })
 
     const saved = JSON.parse(localStorage.getItem('workout-data'))
-    expect(saved.exercises).toEqual(['Squats'])
+    expect(saved.exercises).toHaveLength(11)
+    expect(saved.exercises[10]).toEqual({ id: 11, name: 'Squats' })
   })
 
   it('saves valid WorkoutData structure', () => {

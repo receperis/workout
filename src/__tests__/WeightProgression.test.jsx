@@ -14,11 +14,11 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-function renderWithSessions(sets, exercise = 'Bench Press') {
+function renderWithSessions(sets, exerciseId = 1) {
   localStorage.setItem(
     'workout-data',
     JSON.stringify({
-      exercises: [exercise],
+      exercises: [{ id: 1, name: 'Bench Press' }],
       schedule: {},
       sessions: [
         {
@@ -32,7 +32,7 @@ function renderWithSessions(sets, exercise = 'Bench Press') {
   )
   return render(
     <WorkoutProvider>
-      <WeightProgression exercise={exercise} />
+      <WeightProgression exerciseId={exerciseId} />
     </WorkoutProvider>,
   )
 }
@@ -41,24 +41,24 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
   it('renders empty message when no data', () => {
     render(
       <WorkoutProvider>
-        <WeightProgression exercise="Bench Press" />
+        <WeightProgression exerciseId={1} />
       </WorkoutProvider>,
     )
-    expect(screen.getByText(/No data for this period/)).toBeInTheDocument()
+    expect(screen.getByText(/Bu dönem için veri yok/)).toBeInTheDocument()
   })
 
   it('does not show empty message when session data exists', () => {
     renderWithSessions([
-      { exercise: 'Bench Press', reps: 15, weight: 50 },
-      { exercise: 'Bench Press', reps: 13, weight: 55 },
+      { exerciseId: 1, reps: 15, weight: 50 },
+      { exerciseId: 1, reps: 13, weight: 55 },
     ])
-    expect(screen.queryByText(/No data for this period/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Bu dönem için veri yok/)).not.toBeInTheDocument()
   })
 
   it('renders date range selector with 3 options', () => {
     render(
       <WorkoutProvider>
-        <WeightProgression exercise="Bench Press" />
+        <WeightProgression exerciseId={1} />
       </WorkoutProvider>,
     )
     const select = screen.getByRole('combobox')
@@ -70,7 +70,7 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
   it('changes date range selection', () => {
     render(
       <WorkoutProvider>
-        <WeightProgression exercise="Bench Press" />
+        <WeightProgression exerciseId={1} />
       </WorkoutProvider>,
     )
     const select = screen.getByRole('combobox')
@@ -82,14 +82,14 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
     localStorage.setItem(
       'workout-data',
       JSON.stringify({
-        exercises: ['Bench Press'],
+        exercises: [{ id: 1, name: 'Bench Press' }],
         schedule: {},
         sessions: [
           {
             id: '1',
             date: '2025-01-01',
             day: 'Monday',
-            sets: [{ exercise: 'Bench Press', reps: 15, weight: 80 }],
+            sets: [{ exerciseId: 1, reps: 15, weight: 80 }],
           },
         ],
       }),
@@ -97,13 +97,13 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
 
     render(
       <WorkoutProvider>
-        <WeightProgression exercise="Bench Press" />
+        <WeightProgression exerciseId={1} />
       </WorkoutProvider>,
     )
 
     const select = screen.getByRole('combobox')
     fireEvent.change(select, { target: { value: '30d' } })
-    expect(screen.getByText(/No data for this period/)).toBeInTheDocument()
+    expect(screen.getByText(/Bu dönem için veri yok/)).toBeInTheDocument()
   })
 
   it('does not show empty message when data is within date range', () => {
@@ -114,14 +114,14 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
     localStorage.setItem(
       'workout-data',
       JSON.stringify({
-        exercises: ['Bench Press'],
+        exercises: [{ id: 1, name: 'Bench Press' }],
         schedule: {},
         sessions: [
           {
             id: '1',
             date: recentDateStr,
             day: 'Monday',
-            sets: [{ exercise: 'Bench Press', reps: 15, weight: 80 }],
+            sets: [{ exerciseId: 1, reps: 15, weight: 80 }],
           },
         ],
       }),
@@ -129,28 +129,28 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
 
     render(
       <WorkoutProvider>
-        <WeightProgression exercise="Bench Press" />
+        <WeightProgression exerciseId={1} />
       </WorkoutProvider>,
     )
 
     const select = screen.getByRole('combobox')
     fireEvent.change(select, { target: { value: '30d' } })
-    expect(screen.queryByText(/No data for this period/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Bu dönem için veri yok/)).not.toBeInTheDocument()
   })
 
   it('shows no data for different exercise with no sessions', () => {
     renderWithSessions(
-      [{ exercise: 'Bench Press', reps: 15, weight: 50 }],
-      'Squat'
+      [{ exerciseId: 1, reps: 15, weight: 50 }],
+      2
     )
-    expect(screen.getByText(/No data for this period/)).toBeInTheDocument()
+    expect(screen.getByText(/Bu dönem için veri yok/)).toBeInTheDocument()
   })
 
-  it('filters sessions by exercise name', () => {
+  it('filters sessions by exercise ID', () => {
     localStorage.setItem(
       'workout-data',
       JSON.stringify({
-        exercises: ['Bench Press', 'Squat'],
+        exercises: [{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squat' }],
         schedule: {},
         sessions: [
           {
@@ -158,8 +158,8 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
             date: '2026-09-10',
             day: 'Monday',
             sets: [
-              { exercise: 'Bench Press', reps: 15, weight: 80 },
-              { exercise: 'Squat', reps: 15, weight: 140 },
+              { exerciseId: 1, reps: 15, weight: 80 },
+              { exerciseId: 2, reps: 15, weight: 140 },
             ],
           },
         ],
@@ -168,10 +168,10 @@ describe('WeightProgression - Multi-line Rep Tiers', () => {
 
     render(
       <WorkoutProvider>
-        <WeightProgression exercise="Bench Press" />
+        <WeightProgression exerciseId={1} />
       </WorkoutProvider>,
     )
 
-    expect(screen.queryByText(/No data for this period/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Bu dönem için veri yok/)).not.toBeInTheDocument()
   })
 })

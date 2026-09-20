@@ -29,7 +29,7 @@ function CompactView({ data }) {
   )
 
   if (tiersWithData.length === 0) {
-    return <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No data for this period.</p>
+    return <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Bu dönem için veri yok.</p>
   }
 
   const lastPoint = data[data.length - 1]
@@ -78,9 +78,9 @@ function FullView({ data, dateRange, setDateRange }) {
             border: '1px solid var(--border)',
           }}
         >
-          <option value="all">All time</option>
-          <option value="30d">30 days</option>
-          <option value="90d">90 days</option>
+          <option value="all">Tüm zamanlar</option>
+          <option value="30d">30 gün</option>
+          <option value="90d">90 gün</option>
         </select>
       </div>
 
@@ -135,7 +135,7 @@ function FullView({ data, dateRange, setDateRange }) {
   )
 }
 
-function WeightProgression({ exercise, compact = false }) {
+function WeightProgression({ exerciseId, compact = false }) {
   const { state: { sessions } } = useWorkout()
   const [dateRange, setDateRange] = React.useState('all')
 
@@ -148,9 +148,9 @@ function WeightProgression({ exercise, compact = false }) {
   const cutoffDate = dateRange === '30d' ? thirtyDaysAgo : dateRange === '90d' ? ninetyDaysAgo : null
 
   const filteredSessions = sessions.filter((session) => {
-    if (!cutoffDate) return session.sets.some((set) => set.exercise === exercise)
+    if (!cutoffDate) return session.sets.some((set) => set.exerciseId === exerciseId)
     const sessionDate = new Date(session.date)
-    return sessionDate >= cutoffDate && session.sets.some((set) => set.exercise === exercise)
+    return sessionDate >= cutoffDate && session.sets.some((set) => set.exerciseId === exerciseId)
   })
 
   const data = filteredSessions
@@ -158,7 +158,7 @@ function WeightProgression({ exercise, compact = false }) {
       const point = { date: session.date }
       for (const reps of PYRAMID_REPS) {
         const set = session.sets.find(
-          (s) => s.exercise === exercise && s.reps === reps,
+          (s) => s.exerciseId === exerciseId && s.reps === reps,
         )
         point[`${reps} reps`] = set?.weight || 0
       }
@@ -167,7 +167,7 @@ function WeightProgression({ exercise, compact = false }) {
     .filter((point) => PYRAMID_REPS.some((r) => point[`${r} reps`] > 0))
 
   if (compact) {
-    return <CompactView data={data} exercise={exercise} />
+    return <CompactView data={data} exerciseId={exerciseId} />
   }
 
   return (
@@ -175,12 +175,12 @@ function WeightProgression({ exercise, compact = false }) {
       <FullView data={data} dateRange={dateRange} setDateRange={setDateRange} />
 
       {data.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No data for this period.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Bu dönem için veri yok.</p>
       ) : (
         <div className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>
-          <span className="font-medium" style={{ color: 'var(--text)' }}>Last session: </span>
+          <span className="font-medium" style={{ color: 'var(--text)' }}>Son seans: </span>
           {PYRAMID_REPS.filter((r) => data[data.length - 1][`${r} reps`] > 0)
-            .map((r) => `${r} reps → ${data[data.length - 1][`${r} reps`]} kg`)
+            .map((r) => `${r} tekrar → ${data[data.length - 1][`${r} reps`]} kg`)
             .join(' | ')}
         </div>
       )}

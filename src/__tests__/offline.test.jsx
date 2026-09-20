@@ -4,39 +4,40 @@ import { render, screen, cleanup, act } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { WorkoutProvider, useWorkout } from '../context/WorkoutContext'
 import { EMPTY_WORKOUT_DATA } from '../types'
-import * as storage from '../storage'
 
 const mockSignIn = vi.fn()
 const mockSignOut = vi.fn()
 const mockFindOrCreateFile = vi.fn()
 const mockLoadFromDrive = vi.fn()
 const mockSaveToDrive = vi.fn()
+const mockRestoreSession = vi.fn()
 let mockSignedIn = false
 
 vi.mock('../googleDrive', () => ({
   isSignedIn: () => mockSignedIn,
   signIn: (...args) => mockSignIn(...args),
   signOut: (...args) => mockSignOut(...args),
+  restoreSession: (...args) => mockRestoreSession(...args),
   findOrCreateFile: (...args) => mockFindOrCreateFile(...args),
   loadFromDrive: (...args) => mockLoadFromDrive(...args),
   saveToDrive: (...args) => mockSaveToDrive(...args),
+  loadGoogleScripts: vi.fn(),
 }))
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
 function TestComponent() {
-  const { state, dispatch, signIn, signOut, syncStatus, signedIn, online, pendingSync } = useWorkout()
+  const { state, dispatch, signIn, signOut, syncStatus, signedIn, online } = useWorkout()
   return (
     <div>
       <span data-testid="exercises">{JSON.stringify(state.exercises)}</span>
       <span data-testid="syncStatus">{syncStatus}</span>
       <span data-testid="signedIn">{String(signedIn)}</span>
       <span data-testid="online">{String(online)}</span>
-      <span data-testid="pendingSync">{String(pendingSync)}</span>
       <button onClick={() => dispatch({ type: 'ADD_EXERCISE', payload: 'Bench Press' })}>
         Add Exercise
       </button>
-      <button onClick={() => signIn('test-client-id')}>Sign In</button>
+      <button onClick={() => signIn()}>Sign In</button>
       <button onClick={() => signOut()}>Sign Out</button>
     </div>
   )
@@ -64,28 +65,6 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
-})
-
-describe('offline queue storage', () => {
-  it('savePendingSync sets flag in localStorage', () => {
-    storage.savePendingSync()
-    expect(localStorage.getItem('workout-pending-sync')).toBe('true')
-  })
-
-  it('loadPendingSync returns false when not set', () => {
-    expect(storage.loadPendingSync()).toBe(false)
-  })
-
-  it('loadPendingSync returns true after save', () => {
-    storage.savePendingSync()
-    expect(storage.loadPendingSync()).toBe(true)
-  })
-
-  it('clearPendingSync removes the flag', () => {
-    storage.savePendingSync()
-    storage.clearPendingSync()
-    expect(storage.loadPendingSync()).toBe(false)
-  })
 })
 
 describe('offline detection', () => {
@@ -119,8 +98,8 @@ describe('offline detection', () => {
   })
 })
 
-describe('sync queuing when offline', () => {
-  it('queues changes and sets error status when offline while signed in', async () => {
+describe('sync behavior when offline', () => {
+  it('sets error status when offline while signed in', async () => {
     Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
@@ -133,8 +112,6 @@ describe('sync queuing when offline', () => {
       await flush()
     })
 
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('false')
-
     Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
 
     await act(async () => {
@@ -142,12 +119,11 @@ describe('sync queuing when offline', () => {
       await flush()
     })
 
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('true')
     expect(screen.getByTestId('syncStatus')).toHaveTextContent('error')
     expect(mockSaveToDrive).not.toHaveBeenCalled()
   })
 
-  it('queues changes when Drive sync fails', async () => {
+  it('sets error status when Drive sync fails', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -166,14 +142,12 @@ describe('sync queuing when offline', () => {
       await flush()
     })
 
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('true')
     expect(screen.getByTestId('syncStatus')).toHaveTextContent('error')
-    expect(localStorage.getItem('workout-pending-sync')).toBe('true')
   })
 })
 
-describe('sync flush on reconnect', () => {
-  it('flushes pending sync when coming back online', async () => {
+describe('sync succeeds when online', () => {
+  it('syncs to Drive after state change when online', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -185,67 +159,20 @@ describe('sync flush on reconnect', () => {
       await flush()
     })
 
-    mockSaveToDrive.mockRejectedValueOnce(new Error('Network error'))
-
     await act(async () => {
       screen.getByText('Add Exercise').click()
       await flush()
     })
 
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('true')
-
-    mockSaveToDrive.mockResolvedValueOnce({})
-
-    await act(async () => {
-      window.dispatchEvent(new Event('online'))
-      await flush()
-    })
-
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('false')
-    expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
     expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
-      exercises: ['Bench Press'],
+      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 11, name: 'Bench Press' }],
     }))
-  })
-
-  it('does not flush when not signed in', async () => {
-    storage.savePendingSync()
-
-    renderWithProvider()
-
-    await act(async () => {
-      window.dispatchEvent(new Event('online'))
-      await flush()
-    })
-
-    expect(mockSaveToDrive).not.toHaveBeenCalled()
-  })
-
-  it('does not flush when online event fires but no pending sync', async () => {
-    mockSignedIn = true
-    mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
-    mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
-
-    renderWithProvider()
-
-    await act(async () => {
-      screen.getByText('Sign In').click()
-      await flush()
-    })
-
-    mockSaveToDrive.mockClear()
-
-    await act(async () => {
-      window.dispatchEvent(new Event('online'))
-      await flush()
-    })
-
-    expect(mockSaveToDrive).not.toHaveBeenCalled()
+    expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
   })
 })
 
-describe('signOut clears pending sync', () => {
-  it('clears pending sync flag on sign out', async () => {
+describe('signOut', () => {
+  it('clears signed-in state and session data on sign out', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -256,47 +183,38 @@ describe('signOut clears pending sync', () => {
       screen.getByText('Sign In').click()
       await flush()
     })
-
-    mockSaveToDrive.mockRejectedValueOnce(new Error('fail'))
-
-    await act(async () => {
-      screen.getByText('Add Exercise').click()
-      await flush()
-    })
-
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('true')
 
     mockSignedIn = false
     await act(async () => {
       screen.getByText('Sign Out').click()
     })
 
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('false')
-    expect(localStorage.getItem('workout-pending-sync')).toBeNull()
+    expect(screen.getByTestId('signedIn')).toHaveTextContent('false')
+    expect(localStorage.getItem('workout-data')).toBeNull()
+    expect(localStorage.getItem('google-drive-file-id')).toBeNull()
   })
 })
 
-describe('signIn clears pending sync', () => {
-  it('clears pending sync after successful sign in and merge', async () => {
-    storage.savePendingSync()
-
+describe('signIn', () => {
+  it('loads data from Drive after sign in', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue({
-      exercises: ['Squats'],
+      exercises: [{ id: 1, name: 'Squats' }],
       schedule: {},
       sessions: [],
     })
 
     renderWithProvider()
 
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('true')
-
     await act(async () => {
       screen.getByText('Sign In').click()
       await flush()
     })
 
-    expect(screen.getByTestId('pendingSync')).toHaveTextContent('false')
+    expect(screen.getByTestId('exercises')).toHaveTextContent(
+      JSON.stringify(EMPTY_WORKOUT_DATA.exercises),
+    )
+    expect(screen.getByTestId('signedIn')).toHaveTextContent('true')
   })
 })

@@ -10,15 +10,18 @@ const mockSignOut = vi.fn()
 const mockFindOrCreateFile = vi.fn()
 const mockLoadFromDrive = vi.fn()
 const mockSaveToDrive = vi.fn()
+const mockRestoreSession = vi.fn()
 let mockSignedIn = false
 
 vi.mock('../googleDrive', () => ({
   isSignedIn: () => mockSignedIn,
   signIn: (...args) => mockSignIn(...args),
   signOut: (...args) => mockSignOut(...args),
+  restoreSession: (...args) => mockRestoreSession(...args),
   findOrCreateFile: (...args) => mockFindOrCreateFile(...args),
   loadFromDrive: (...args) => mockLoadFromDrive(...args),
   saveToDrive: (...args) => mockSaveToDrive(...args),
+  loadGoogleScripts: vi.fn(),
 }))
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
@@ -28,6 +31,7 @@ beforeEach(() => {
   mockSignedIn = false
   mockSignIn.mockReset()
   mockSignOut.mockReset()
+  mockRestoreSession.mockReset()
   mockFindOrCreateFile.mockReset()
   mockLoadFromDrive.mockReset()
   mockSaveToDrive.mockReset()
@@ -39,7 +43,7 @@ afterEach(() => {
 })
 
 function TestComponent() {
-  const { state, dispatch, signIn, signOut, syncStatus, signedIn } = useWorkout()
+  const { state, dispatch, signIn, signOut, syncNow, syncStatus, signedIn } = useWorkout()
   return (
     <div>
       <span data-testid="exercises">{JSON.stringify(state.exercises)}</span>
@@ -50,8 +54,9 @@ function TestComponent() {
       <button onClick={() => dispatch({ type: 'ADD_EXERCISE', payload: 'Bench Press' })}>
         Add Exercise
       </button>
-      <button onClick={() => signIn('test-client-id')}>Sign In</button>
+      <button onClick={() => signIn()}>Sign In</button>
       <button onClick={() => signOut()}>Sign Out</button>
+      <button onClick={() => syncNow()}>Sync Now</button>
     </div>
   )
 }
@@ -66,55 +71,50 @@ function renderWithProvider() {
 
 describe('mergeData', () => {
   it('returns local when remote is empty', () => {
-    const local = {
-      exercises: ['Bench Press'],
-      schedule: { Monday: ['Bench Press'] },
-      sessions: [{ id: '1', date: '2026-09-14', day: 'Monday', sets: [] }],
-    }
-    const result = mergeData(local, EMPTY_WORKOUT_DATA)
-    expect(result).toEqual(local)
+    const result = mergeData(EMPTY_WORKOUT_DATA, { exercises: [], schedule: {}, sessions: [] })
+    expect(result).toEqual(EMPTY_WORKOUT_DATA)
   })
 
   it('returns remote when local is empty', () => {
     const remote = {
-      exercises: ['Squats'],
-      schedule: { Friday: ['Squats'] },
+      exercises: [{ id: 2, name: 'Squats' }],
+      schedule: { Friday: [2] },
       sessions: [{ id: '2', date: '2026-09-15', day: 'Friday', sets: [] }],
     }
-    const result = mergeData(EMPTY_WORKOUT_DATA, remote)
+    const result = mergeData({ exercises: [], schedule: {}, sessions: [] }, remote)
     expect(result).toEqual(remote)
   })
 
   it('combines exercises from both sources', () => {
-    const local = { exercises: ['Bench Press'], schedule: {}, sessions: [] }
-    const remote = { exercises: ['Squats'], schedule: {}, sessions: [] }
+    const local = { exercises: [{ id: 1, name: 'Bench Press' }], schedule: {}, sessions: [] }
+    const remote = { exercises: [{ id: 2, name: 'Squats' }], schedule: {}, sessions: [] }
     const result = mergeData(local, remote)
-    expect(result.exercises).toEqual(['Bench Press', 'Squats'])
+    expect(result.exercises).toEqual([{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squats' }])
   })
 
-  it('deduplicates exercises', () => {
-    const local = { exercises: ['Bench Press', 'Squats'], schedule: {}, sessions: [] }
-    const remote = { exercises: ['Squats', 'Deadlift'], schedule: {}, sessions: [] }
+  it('deduplicates exercises by ID', () => {
+    const local = { exercises: [{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squats' }], schedule: {}, sessions: [] }
+    const remote = { exercises: [{ id: 2, name: 'Squats' }, { id: 3, name: 'Deadlift' }], schedule: {}, sessions: [] }
     const result = mergeData(local, remote)
-    expect(result.exercises).toEqual(['Bench Press', 'Squats', 'Deadlift'])
+    expect(result.exercises).toEqual([{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squats' }, { id: 3, name: 'Deadlift' }])
   })
 
   it('local schedule overrides remote for shared keys', () => {
     const local = {
       exercises: [],
-      schedule: { Monday: ['Bench Press'], Wednesday: ['Squats'] },
+      schedule: { Monday: [1], Wednesday: [2] },
       sessions: [],
     }
     const remote = {
       exercises: [],
-      schedule: { Monday: ['Deadlift'], Friday: ['Rows'] },
+      schedule: { Monday: [3], Friday: [4] },
       sessions: [],
     }
     const result = mergeData(local, remote)
     expect(result.schedule).toEqual({
-      Monday: ['Bench Press'],
-      Wednesday: ['Squats'],
-      Friday: ['Rows'],
+      Monday: [1],
+      Wednesday: [2],
+      Friday: [4],
     })
   })
 
@@ -128,7 +128,7 @@ describe('mergeData', () => {
       exercises: [],
       schedule: {},
       sessions: [
-        { id: '1', date: '2026-09-14', day: 'Monday', sets: [{ exercise: 'Bench', reps: 15, weight: 50 }] },
+        { id: '1', date: '2026-09-14', day: 'Monday', sets: [{ exerciseId: 1, reps: 15, weight: 50 }] },
         { id: '2', date: '2026-09-15', day: 'Friday', sets: [] },
       ],
     }
@@ -144,22 +144,22 @@ describe('signIn sync flow', () => {
     localStorage.setItem(
       'workout-data',
       JSON.stringify({
-        exercises: ['Bench Press'],
-        schedule: { Monday: ['Bench Press'] },
+        exercises: [{ id: 1, name: 'Bench Press' }],
+        schedule: { Monday: [1] },
         sessions: [],
       }),
     )
 
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue({
-      exercises: ['Squats'],
-      schedule: { Friday: ['Squats'] },
+      exercises: [{ id: 2, name: 'Squats' }],
+      schedule: { Friday: [2] },
       sessions: [],
     })
 
     renderWithProvider()
 
-    expect(screen.getByTestId('exercises')).toHaveTextContent('["Bench Press"]')
+    expect(screen.getByTestId('exercises')).toHaveTextContent('[{"id":1,"name":"Bench Press"}]')
 
     mockSignedIn = true
     await act(async () => {
@@ -167,20 +167,20 @@ describe('signIn sync flow', () => {
       await flush()
     })
 
-    expect(mockSignIn).toHaveBeenCalledWith('test-client-id')
+    expect(mockSignIn).toHaveBeenCalled()
     expect(mockFindOrCreateFile).toHaveBeenCalled()
     expect(mockLoadFromDrive).toHaveBeenCalledWith('file1')
-    expect(screen.getByTestId('exercises')).toHaveTextContent('["Bench Press","Squats"]')
+    expect(screen.getByTestId('exercises')).toHaveTextContent('[{"id":1,"name":"Bench Press"},{"id":2,"name":"Squats"}]')
     expect(screen.getByTestId('schedule')).toHaveTextContent(
-      '{"Friday":["Squats"],"Monday":["Bench Press"]}',
+      '{"Friday":[2],"Monday":[1]}',
     )
   })
 
   it('uses Drive data when local is empty', async () => {
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue({
-      exercises: ['Squats'],
-      schedule: { Friday: ['Squats'] },
+      exercises: [{ id: 2, name: 'Squats' }],
+      schedule: { Friday: [2] },
       sessions: [{ id: 's1', date: '2026-09-15', day: 'Friday', sets: [] }],
     })
 
@@ -192,7 +192,10 @@ describe('signIn sync flow', () => {
       await flush()
     })
 
-    expect(screen.getByTestId('exercises')).toHaveTextContent('["Squats"]')
+    expect(screen.getByTestId('exercises')).toHaveTextContent(
+      JSON.stringify(EMPTY_WORKOUT_DATA.exercises),
+    )
+    expect(screen.getByTestId('schedule')).toHaveTextContent('{"Friday":[2]}')
     expect(screen.getByTestId('sessions')).toHaveTextContent(
       '[{"id":"s1","date":"2026-09-15","day":"Friday","sets":[]}]',
     )
@@ -213,7 +216,7 @@ describe('signIn sync flow', () => {
       exercises: [],
       schedule: {},
       sessions: [
-        { id: 's1', date: '2026-09-14', day: 'Monday', sets: [{ exercise: 'Bench', reps: 15, weight: 50 }] },
+        { id: 's1', date: '2026-09-14', day: 'Monday', sets: [{ exerciseId: 1, reps: 15, weight: 50 }] },
         { id: 's2', date: '2026-09-15', day: 'Friday', sets: [] },
       ],
     })
@@ -253,7 +256,7 @@ describe('Drive sync on state change', () => {
     })
 
     expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
-      exercises: ['Bench Press'],
+      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 11, name: 'Bench Press' }],
     }))
   })
 
@@ -358,6 +361,92 @@ describe('signOut', () => {
 
     await act(async () => {
       screen.getByText('Add Exercise').click()
+      await flush()
+    })
+
+    expect(mockSaveToDrive).not.toHaveBeenCalled()
+  })
+})
+
+describe('syncNow', () => {
+  it('pushes current state to Drive when called manually', async () => {
+    mockSignedIn = true
+    mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
+    mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
+
+    renderWithProvider()
+
+    await act(async () => {
+      screen.getByText('Sign In').click()
+      await flush()
+    })
+
+    await act(async () => {
+      screen.getByText('Add Exercise').click()
+      await flush()
+    })
+
+    mockSaveToDrive.mockClear()
+
+    await act(async () => {
+      screen.getByText('Sync Now').click()
+      await flush()
+    })
+
+    expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
+      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 11, name: 'Bench Press' }],
+    }))
+  })
+
+  it('sets syncStatus to syncing then idle on successful sync', async () => {
+    mockSignedIn = true
+    mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
+    mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
+
+    renderWithProvider()
+
+    await act(async () => {
+      screen.getByText('Sign In').click()
+      await flush()
+    })
+
+    expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
+
+    await act(async () => {
+      screen.getByText('Sync Now').click()
+      await flush()
+    })
+
+    expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
+  })
+
+  it('sets syncStatus to error on failed sync', async () => {
+    mockSignedIn = true
+    mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
+    mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
+
+    renderWithProvider()
+
+    await act(async () => {
+      screen.getByText('Sign In').click()
+      await flush()
+    })
+
+    mockSaveToDrive.mockRejectedValueOnce(new Error('Network error'))
+
+    await act(async () => {
+      screen.getByText('Sync Now').click()
+      await flush()
+    })
+
+    expect(screen.getByTestId('syncStatus')).toHaveTextContent('error')
+  })
+
+  it('does nothing when not signed in', async () => {
+    renderWithProvider()
+
+    await act(async () => {
+      screen.getByText('Sync Now').click()
       await flush()
     })
 

@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useState } from 'react'
 import { EMPTY_WORKOUT_DATA } from '../types'
-import { loadData, saveData, savePendingSync, loadPendingSync, clearPendingSync } from '../storage'
+import { loadData, saveData, clearSessionData, getFileId, saveFileId, clearFileId } from '../storage'
 import {
   isSignedIn,
   signIn as driveSignIn,
@@ -8,13 +8,14 @@ import {
   findOrCreateFile,
   loadFromDrive,
   loadGoogleScripts,
+  restoreSession,
   saveToDrive,
 } from '../googleDrive'
 
 const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutContextValue | null>} */ (null))
 
 /**
- * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'RENAME_EXERCISE' | 'LOG_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA'} WorkoutActionType
+ * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'RENAME_EXERCISE' | 'LOG_SESSION' | 'UPDATE_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA'} WorkoutActionType
  */
 
 /**
@@ -31,12 +32,12 @@ const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutC
  * @typedef {Object} WorkoutContextValue
  * @property {import('../types').WorkoutData} state
  * @property {React.Dispatch<WorkoutAction>} dispatch
- * @property {(clientId: string) => Promise<void>} signIn
+ * @property {() => Promise<void>} signIn
  * @property {() => void} signOut
+ * @property {() => Promise<void>} syncNow
  * @property {SyncStatus} syncStatus
  * @property {boolean} signedIn
  * @property {boolean} online
- * @property {boolean} pendingSync
  */
 
 /**
@@ -45,10 +46,12 @@ const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutC
  * @returns {import('../types').WorkoutData}
  */
 export function mergeData(local, remote) {
-  const exercises = [...local.exercises]
+  const exerciseMap = new Map()
+  for (const e of local.exercises) exerciseMap.set(e.id, e)
   for (const e of remote.exercises) {
-    if (!exercises.includes(e)) exercises.push(e)
+    if (!exerciseMap.has(e.id)) exerciseMap.set(e.id, e)
   }
+  const exercises = [...exerciseMap.values()]
 
   const schedule = { ...remote.schedule, ...local.schedule }
 
@@ -67,29 +70,25 @@ export function mergeData(local, remote) {
  */
 function workoutReducer(state, action) {
   switch (action.type) {
-    case 'ADD_EXERCISE':
+    case 'ADD_EXERCISE': {
+      const maxId = state.exercises.reduce((max, e) => Math.max(max, e.id), 0)
       return {
         ...state,
-        exercises: [...state.exercises, action.payload],
+        exercises: [...state.exercises, { id: maxId + 1, name: action.payload }],
       }
+    }
 
     case 'REMOVE_EXERCISE':
       return {
         ...state,
-        exercises: state.exercises.filter((e) => e !== action.payload),
+        exercises: state.exercises.filter((e) => e.id !== action.payload),
       }
 
     case 'RENAME_EXERCISE': {
-      const { oldName, newName } = action.payload
+      const { id, newName } = action.payload
       return {
         ...state,
-        exercises: state.exercises.map((e) => (e === oldName ? newName : e)),
-        schedule: Object.fromEntries(
-          Object.entries(state.schedule).map(([day, exercises]) => [
-            day,
-            exercises.map((e) => (e === oldName ? newName : e)),
-          ]),
-        ),
+        exercises: state.exercises.map((e) => (e.id === id ? { ...e, name: newName } : e)),
       }
     }
 
@@ -97,6 +96,14 @@ function workoutReducer(state, action) {
       return {
         ...state,
         sessions: [...state.sessions, action.payload],
+      }
+
+    case 'UPDATE_SESSION':
+      return {
+        ...state,
+        sessions: state.sessions.map((s) =>
+          s.id === action.payload.id ? action.payload : s,
+        ),
       }
 
     case 'SET_SCHEDULE':
@@ -124,33 +131,8 @@ export function WorkoutProvider({ children }) {
   const [signedIn, setSignedIn] = useState(() => isSignedIn())
   const skipSyncRef = useRef(false)
   const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
-  const [pendingSync, setPendingSync] = useState(() => loadPendingSync())
 
   stateRef.current = state
-
-  const flushPendingSync = useCallback(async () => {
-    if (!isSignedIn() || !fileIdRef.current) return
-    setSyncStatus('syncing')
-    try {
-      await saveToDrive(fileIdRef.current, stateRef.current)
-      clearPendingSync()
-      setPendingSync(false)
-      setSyncStatus('idle')
-    } catch (e) {
-      const err = e instanceof Error ? e.message : String(e)
-      if (err === 'Token expired') {
-        driveSignOut()
-        fileIdRef.current = null
-        setSignedIn(false)
-        setSyncStatus('idle')
-        setPendingSync(false)
-      } else {
-        savePendingSync()
-        setPendingSync(true)
-        setSyncStatus('error')
-      }
-    }
-  }, [])
 
   useEffect(() => {
     saveData(state)
@@ -163,16 +145,12 @@ export function WorkoutProvider({ children }) {
     }
     if (!isSignedIn() || !fileIdRef.current) return
     if (!navigator.onLine) {
-      savePendingSync()
-      setPendingSync(true)
       setSyncStatus('error')
       return
     }
     setSyncStatus('syncing')
     saveToDrive(fileIdRef.current, state)
       .then(() => {
-        clearPendingSync()
-        setPendingSync(false)
         setSyncStatus('idle')
       })
       .catch((e) => {
@@ -180,22 +158,17 @@ export function WorkoutProvider({ children }) {
         if (err === 'Token expired') {
           driveSignOut()
           fileIdRef.current = null
+          clearFileId()
           setSignedIn(false)
           setSyncStatus('idle')
-          setPendingSync(false)
         } else {
-          savePendingSync()
-          setPendingSync(true)
           setSyncStatus('error')
         }
       })
   }, [state])
 
   useEffect(() => {
-    const handleOnline = () => {
-      setOnline(true)
-      if (pendingSync) flushPendingSync()
-    }
+    const handleOnline = () => setOnline(true)
     const handleOffline = () => setOnline(false)
 
     window.addEventListener('online', handleOnline)
@@ -204,40 +177,110 @@ export function WorkoutProvider({ children }) {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [pendingSync, flushPendingSync])
-
-  useEffect(() => {
-    if (pendingSync && online && isSignedIn() && fileIdRef.current) {
-      flushPendingSync()
-    }
   }, [])
 
-  const signIn = useCallback(async (/** @type {string} */ clientId) => {
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isSignedIn() && fileIdRef.current) {
+        clearSessionData()
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    if (!clientId) return
+
+    let cancelled = false
+
+    async function restore() {
+      try {
+        await loadGoogleScripts()
+        await restoreSession(clientId)
+        if (cancelled) return
+
+        setSignedIn(true)
+
+        let fileId = getFileId()
+        if (!fileId) {
+          const result = await findOrCreateFile()
+          fileId = result.fileId
+        }
+        if (cancelled) return
+
+        fileIdRef.current = fileId
+        saveFileId(fileId)
+
+        const driveData = await loadFromDrive(fileId)
+        if (cancelled) return
+
+        const merged = mergeData(stateRef.current, driveData)
+        skipSyncRef.current = true
+        dispatch({ type: 'LOAD_DATA', payload: merged })
+      } catch {
+        // Silent fail — user stays signed out, can re-auth manually
+      }
+    }
+
+    restore()
+
+    return () => { cancelled = true }
+  }, [])
+
+  const signIn = useCallback(async () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    if (!clientId) throw new Error('Missing Google Client ID')
+
     await loadGoogleScripts()
     await driveSignIn(clientId)
     setSignedIn(true)
     const { fileId } = await findOrCreateFile()
     fileIdRef.current = fileId
+    saveFileId(fileId)
     const driveData = await loadFromDrive(fileId)
     const merged = mergeData(stateRef.current, driveData)
     skipSyncRef.current = true
     dispatch({ type: 'LOAD_DATA', payload: merged })
-    clearPendingSync()
-    setPendingSync(false)
   }, [])
 
   const signOut = useCallback(() => {
     driveSignOut()
     fileIdRef.current = null
+    clearFileId()
+    clearSessionData()
     setSignedIn(false)
     setSyncStatus('idle')
-    clearPendingSync()
-    setPendingSync(false)
+  }, [])
+
+  const syncNow = useCallback(async () => {
+    if (!isSignedIn() || !fileIdRef.current) return
+    if (!navigator.onLine) {
+      setSyncStatus('error')
+      return
+    }
+    setSyncStatus('syncing')
+    try {
+      await saveToDrive(fileIdRef.current, stateRef.current)
+      setSyncStatus('idle')
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e)
+      if (err === 'Token expired') {
+        driveSignOut()
+        fileIdRef.current = null
+        clearFileId()
+        setSignedIn(false)
+        setSyncStatus('idle')
+      } else {
+        setSyncStatus('error')
+      }
+    }
   }, [])
 
   return (
     <WorkoutContext.Provider
-      value={{ state, dispatch, signIn, signOut, syncStatus, signedIn, online, pendingSync }}
+      value={{ state, dispatch, signIn, signOut, syncNow, syncStatus, signedIn, online }}
     >
       {children}
     </WorkoutContext.Provider>

@@ -108,6 +108,38 @@ export function isSignedIn() {
   return currentAccessToken !== null
 }
 
+export function restoreSession(clientId) {
+  return new Promise((resolve, reject) => {
+    if (!clientId) {
+      reject(new Error('Missing required parameter client_id'))
+      return
+    }
+
+    if (!window.google?.accounts?.oauth2) {
+      reject(new Error('Google Identity Services not loaded'))
+      return
+    }
+
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: () => {},
+    })
+
+    tokenClient.callback = (response) => {
+      if (response.error) {
+        tokenClient = null
+        reject(new Error(response.error))
+        return
+      }
+      currentAccessToken = response.access_token
+      resolve(response.access_token)
+    }
+
+    tokenClient.requestAccessToken({ prompt: 'none' })
+  })
+}
+
 export function resetAuth() {
   currentAccessToken = null
   tokenClient = null

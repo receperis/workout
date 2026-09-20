@@ -1,16 +1,17 @@
 import { Link } from 'react-router-dom'
 import { useWorkout } from '../context/WorkoutContext'
+import { exerciseNameById } from '../types'
 import WeightProgression from '../components/WeightProgression'
 
 function Dashboard() {
-  const { state: { schedule, sessions } } = useWorkout()
+  const { state: { exercises, schedule, sessions } } = useWorkout()
 
-  const today = new Date().toLocaleString('en-US', { weekday: 'long' })
+  const today = new Date().toLocaleString('tr-TR', { weekday: 'long' })
   const todaySlug = today.toLowerCase()
   const exercisesForToday = schedule[today] || []
 
-  const hasExerciseData = (exercise) =>
-    sessions.some((s) => s.sets.some((set) => set.exercise === exercise))
+  const hasExerciseData = (exerciseId) =>
+    sessions.some((s) => s.sets.some((set) => set.exerciseId === exerciseId))
 
   return (
     <div className="space-y-5">
@@ -18,8 +19,8 @@ function Dashboard() {
         <h1 style={{ color: 'var(--text-heading)' }}>{today}</h1>
         <p className="mt-1" style={{ color: 'var(--text-muted)', fontSize: '15px' }}>
           {exercisesForToday.length === 0
-            ? 'No exercises scheduled today'
-            : `${exercisesForToday.length} exercise${exercisesForToday.length > 1 ? 's' : ''} today`}
+            ? 'Bugün için antrenman planlanmamış'
+            : `Bugün ${exercisesForToday.length} antrenman${exercisesForToday.length > 1 ? '' : ''}`}
         </p>
       </div>
 
@@ -29,14 +30,14 @@ function Dashboard() {
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
         >
           <p style={{ color: 'var(--text-muted)' }}>
-            No exercises scheduled for today. Go to Settings to set up your schedule.
+            Bugün için antrenman planlanmamış. Programınızı ayarlamak için Ayarlar'a gidin.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {exercisesForToday.map((exercise) => (
+          {exercisesForToday.map((exerciseId) => (
             <div
-              key={exercise}
+              key={exerciseId}
               className="rounded-xl p-4"
               style={{
                 background: 'var(--surface)',
@@ -48,13 +49,13 @@ function Dashboard() {
                 className="mb-3"
                 style={{ color: 'var(--text-heading)', fontSize: '16px', fontWeight: 600 }}
               >
-                {exercise}
+                {exerciseNameById(exercises, exerciseId)}
               </h3>
-              {hasExerciseData(exercise) ? (
-                <WeightProgression exercise={exercise} compact />
+              {hasExerciseData(exerciseId) ? (
+                <WeightProgression exerciseId={exerciseId} compact />
               ) : (
                 <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                  No session data yet for {exercise}.
+                  {exerciseNameById(exercises, exerciseId)} için henüz kayıt yok.
                 </p>
               )}
             </div>
@@ -69,7 +70,7 @@ function Dashboard() {
               boxShadow: '0 2px 8px rgba(232, 93, 42, 0.3)',
             }}
           >
-            Log Today
+            Bugünü Kaydet
           </Link>
         </div>
       )}

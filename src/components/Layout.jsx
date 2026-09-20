@@ -4,43 +4,27 @@ import { Link, useLocation } from 'react-router-dom'
 const NAV_ITEMS = [
   {
     to: '/',
-    label: 'Dashboard',
+    label: 'Ana Sayfa',
     testId: 'dashboard-link',
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-      </svg>
-    ),
+    icon: <span className="text-lg leading-none">🏠</span>,
   },
   {
     to: '/log',
-    label: 'Log',
+    label: 'Kayıt',
     testId: 'log-link',
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M14 2H6a2 2 0 0 0-2 2v3h2V4h4v16h4V10h2l3 3v7h2l-3 3h7a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM16 6H8c-1.1 0-2 .9-2 2v3h2v6h2v-6h2v3h2v-3h2v-6h2z" />
-      </svg>
-    ),
+    icon: <span className="text-lg leading-none">📋</span>,
   },
   {
     to: '/progress',
-    label: 'Progress',
+    label: 'İlerleme',
     testId: 'progress-link',
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M3 17l4-4 4 4 8-8M3 12l4-4 4 4 8-8" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
+    icon: <span className="text-lg leading-none">📈</span>,
   },
   {
     to: '/settings',
-    label: 'Settings',
+    label: 'Ayarlar',
     testId: 'settings-link',
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7zm7.43-2.53l1.57-.91-1-1.73-1.82.53a7.1 7.1 0 0 0-1.23-.71l-.28-1.92h-2l-.28 1.92a7.1 7.1 0 0 0-1.23.71l-1.82-.53-1 1.73 1.57.91c-.06.37-.09.75-.09 1.13s.03.76.09 1.13l-1.57.91 1 1.73 1.82-.53c.38.28.79.5 1.23.71l.28 1.92h2l.28-1.92c.44-.21.85-.43 1.23-.71l1.82.53 1-1.73-1.57-.91c.06-.37.09-.75.09-1.13s-.03-.76-.09-1.13z" />
-      </svg>
-    ),
+    icon: <span className="text-lg leading-none">⚙️</span>,
   },
 ]
 
@@ -111,7 +95,7 @@ function Sidebar({ open, onClose }) {
       >
         <div className="p-5 border-b" style={{ borderColor: 'var(--border)' }}>
           <h1 style={{ color: 'var(--text-heading)', fontSize: '20px', fontWeight: 700, letterSpacing: '-0.03em' }}>
-            Workout Tracker
+            Antrenman Takip
           </h1>
         </div>
         <nav className="flex flex-col py-3">
@@ -129,7 +113,7 @@ function Sidebar({ open, onClose }) {
                 }}
               >
                 {item.icon}
-                {item.label === 'Log' ? 'Log Workout' : item.label}
+                {item.label === 'Kayıt' ? 'Antrenman Kaydet' : item.label}
               </Link>
             )
           })}
@@ -155,13 +139,13 @@ export function Layout({ children }) {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="flex items-center gap-2 p-2 rounded-lg transition-colors"
             style={{ color: 'var(--text)' }}
-            aria-label="Toggle sidebar"
+            aria-label="Kenar çubuğunu aç/kapat"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
             </svg>
           </button>
-          <h1 style={{ fontSize: '18px', fontWeight: 600 }}>Workout Tracker</h1>
+          <h1 style={{ fontSize: '18px', fontWeight: 600 }}>Antrenman Takip</h1>
           <div className="w-9" />
         </header>
 

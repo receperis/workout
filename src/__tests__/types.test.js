@@ -3,9 +3,11 @@ import {
   PYRAMID_REPS,
   DAYS_OF_WEEK,
   EMPTY_WORKOUT_DATA,
+  isExercise,
   isWorkoutSet,
   isWorkoutSession,
   isWorkoutData,
+  exerciseNameById,
 } from '../types'
 
 describe('constants', () => {
@@ -15,54 +17,98 @@ describe('constants', () => {
 
   it('DAYS_OF_WEEK has all 7 days in order', () => {
     expect(DAYS_OF_WEEK).toEqual([
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
+      'Pazartesi',
+      'Salı',
+      'Çarşamba',
+      'Perşembe',
+      'Cuma',
+      'Cumartesi',
+      'Pazar',
     ])
   })
 
-  it('EMPTY_WORKOUT_DATA has empty exercises, schedule, and sessions', () => {
-    expect(EMPTY_WORKOUT_DATA).toEqual({
-      exercises: [],
-      schedule: {},
-      sessions: [],
-    })
+  it('EMPTY_WORKOUT_DATA has 10 pre-populated exercises, empty schedule, and sessions', () => {
+    expect(EMPTY_WORKOUT_DATA.exercises).toHaveLength(10)
+    expect(EMPTY_WORKOUT_DATA.schedule).toEqual({})
+    expect(EMPTY_WORKOUT_DATA.sessions).toEqual([])
+  })
+})
+
+describe('isExercise', () => {
+  it('returns true for a valid exercise', () => {
+    expect(isExercise({ id: 1, name: 'Bench Press' })).toBe(true)
+  })
+
+  it('returns false for null', () => {
+    expect(isExercise(null)).toBe(false)
+  })
+
+  it('returns false for undefined', () => {
+    expect(isExercise(undefined)).toBe(false)
+  })
+
+  it('returns false for a string', () => {
+    expect(isExercise('Bench Press')).toBe(false)
+  })
+
+  it('returns false when id is missing', () => {
+    expect(isExercise({ name: 'Bench Press' })).toBe(false)
+  })
+
+  it('returns false when name is missing', () => {
+    expect(isExercise({ id: 1 })).toBe(false)
+  })
+
+  it('returns false when id is not a number', () => {
+    expect(isExercise({ id: '1', name: 'Bench Press' })).toBe(false)
+  })
+
+  it('returns false when name is not a string', () => {
+    expect(isExercise({ id: 1, name: 123 })).toBe(false)
+  })
+})
+
+describe('exerciseNameById', () => {
+  const exercises = [
+    { id: 1, name: 'Bench Press' },
+    { id: 2, name: 'Squat' },
+  ]
+
+  it('returns the name for a known id', () => {
+    expect(exerciseNameById(exercises, 1)).toBe('Bench Press')
+    expect(exerciseNameById(exercises, 2)).toBe('Squat')
+  })
+
+  it('returns the stringified id when not found', () => {
+    expect(exerciseNameById(exercises, 99)).toBe('99')
+  })
+
+  it('returns the stringified id for empty exercises', () => {
+    expect(exerciseNameById([], 1)).toBe('1')
   })
 })
 
 describe('isWorkoutSet', () => {
   it('returns true for a valid set', () => {
-    expect(
-      isWorkoutSet({ exercise: 'Bench Press', reps: 15, weight: 60 }),
-    ).toBe(true)
+    expect(isWorkoutSet({ exerciseId: 1, reps: 15, weight: 60 })).toBe(true)
   })
 
   it('returns true for each valid pyramid rep', () => {
     for (const reps of PYRAMID_REPS) {
-      expect(isWorkoutSet({ exercise: 'Squat', reps, weight: 100 })).toBe(true)
+      expect(isWorkoutSet({ exerciseId: 1, reps, weight: 100 })).toBe(true)
     }
   })
 
   it('returns false for invalid reps', () => {
-    expect(
-      isWorkoutSet({ exercise: 'Squat', reps: 10, weight: 100 }),
-    ).toBe(false)
+    expect(isWorkoutSet({ exerciseId: 1, reps: 10, weight: 100 })).toBe(false)
   })
 
   it('returns false for negative weight', () => {
-    expect(
-      isWorkoutSet({ exercise: 'Squat', reps: 15, weight: -10 }),
-    ).toBe(false)
+    expect(isWorkoutSet({ exerciseId: 1, reps: 15, weight: -10 })).toBe(false)
   })
 
   it('returns false for zero weight', () => {
-    expect(isWorkoutSet({ exercise: 'Squat', reps: 15, weight: 0 })).toBe(
-      false,
-    )
+    expect(isWorkoutSet({ exerciseId: 1, reps: 15, weight: 0 })).toBe(false)
   })
 
   it('returns false for non-object inputs', () => {
@@ -72,16 +118,20 @@ describe('isWorkoutSet', () => {
     expect(isWorkoutSet(42)).toBe(false)
   })
 
-  it('returns false when exercise is missing', () => {
+  it('returns false when exerciseId is missing', () => {
     expect(isWorkoutSet({ reps: 15, weight: 60 })).toBe(false)
   })
 
+  it('returns false when exerciseId is a string', () => {
+    expect(isWorkoutSet({ exerciseId: 'Bench Press', reps: 15, weight: 60 })).toBe(false)
+  })
+
   it('returns false when reps is missing', () => {
-    expect(isWorkoutSet({ exercise: 'Bench Press', weight: 60 })).toBe(false)
+    expect(isWorkoutSet({ exerciseId: 1, weight: 60 })).toBe(false)
   })
 
   it('returns false when weight is missing', () => {
-    expect(isWorkoutSet({ exercise: 'Bench Press', reps: 15 })).toBe(false)
+    expect(isWorkoutSet({ exerciseId: 1, reps: 15 })).toBe(false)
   })
 })
 
@@ -89,8 +139,8 @@ describe('isWorkoutSession', () => {
   const validSession = {
     id: 'abc-123',
     date: '2026-09-14',
-    day: 'Monday',
-    sets: [{ exercise: 'Bench Press', reps: 15, weight: 60 }],
+    day: 'Pazartesi',
+    sets: [{ exerciseId: 1, reps: 15, weight: 60 }],
   }
 
   it('returns true for a valid session', () => {
@@ -134,7 +184,7 @@ describe('isWorkoutSession', () => {
     expect(
       isWorkoutSession({
         ...validSession,
-        sets: [{ exercise: 'Bench', reps: 10, weight: 60 }],
+        sets: [{ exerciseId: 1, reps: 10, weight: 60 }],
       }),
     ).toBe(false)
   })
@@ -147,17 +197,17 @@ describe('isWorkoutSession', () => {
 
 describe('isWorkoutData', () => {
   const validData = {
-    exercises: ['Bench Press', 'Squat'],
+    exercises: [{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squat' }],
     schedule: {
-      Monday: ['Bench Press'],
-      Wednesday: ['Squat'],
+      Pazartesi: [1],
+      Çarşamba: [2],
     },
     sessions: [
       {
         id: 'abc-123',
         date: '2026-09-14',
-        day: 'Monday',
-        sets: [{ exercise: 'Bench Press', reps: 15, weight: 60 }],
+        day: 'Pazartesi',
+        sets: [{ exerciseId: 1, reps: 15, weight: 60 }],
       },
     ],
   }
@@ -174,17 +224,19 @@ describe('isWorkoutData', () => {
     expect(isWorkoutData({ ...validData, exercises: 'not array' })).toBe(false)
   })
 
-  it('returns false when exercises contains non-strings', () => {
-    expect(isWorkoutData({ ...validData, exercises: [123] })).toBe(false)
+  it('returns false when exercises contains non-exercise objects', () => {
+    expect(isWorkoutData({ ...validData, exercises: [{ id: 1 }] })).toBe(false)
+    expect(isWorkoutData({ ...validData, exercises: [{ name: 'Bench' }] })).toBe(false)
+    expect(isWorkoutData({ ...validData, exercises: ['Bench Press'] })).toBe(false)
   })
 
   it('returns false when schedule is not an object', () => {
     expect(isWorkoutData({ ...validData, schedule: 'not object' })).toBe(false)
   })
 
-  it('returns false when schedule values are not string arrays', () => {
+  it('returns false when schedule values contain non-numbers', () => {
     expect(
-      isWorkoutData({ ...validData, schedule: { Monday: [123] } }),
+      isWorkoutData({ ...validData, schedule: { Monday: ['Bench Press'] } }),
     ).toBe(false)
   })
 

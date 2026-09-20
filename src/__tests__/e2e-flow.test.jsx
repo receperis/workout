@@ -10,23 +10,23 @@ describe('E2E Flow - Create exercises → Schedule → Log → Chart', () => {
     localStorage.setItem(
       'workout-data',
       JSON.stringify({
-        exercises: ['Bench Press', 'Squat'],
-        schedule: { Monday: ['Bench Press'], Wednesday: ['Squat'] },
+        exercises: [{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squat' }],
+        schedule: { Pazartesi: [1], Çarşamba: [2] },
         sessions: [
           {
             id: '1',
             date: '2026-09-14',
-            day: 'Monday',
+            day: 'Pazartesi',
             sets: [
-              { exercise: 'Bench Press', reps: 15, weight: 100 },
+              { exerciseId: 1, reps: 15, weight: 100 },
             ],
           },
           {
             id: '2',
             date: '2026-09-14',
-            day: 'Wednesday',
+            day: 'Çarşamba',
             sets: [
-              { exercise: 'Squat', reps: 15, weight: 150 },
+              { exerciseId: 2, reps: 15, weight: 150 },
             ],
           },
         ],
@@ -35,13 +35,13 @@ describe('E2E Flow - Create exercises → Schedule → Log → Chart', () => {
 
     render(<WorkoutProvider><Progress /></WorkoutProvider>)
 
-    expect(screen.getByText('Monday')).toBeInTheDocument()
-    expect(screen.getByText('Wednesday')).toBeInTheDocument()
+    expect(screen.getByText('Paz')).toBeInTheDocument()
+    expect(screen.getByText('Çar')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Monday'))
+    fireEvent.click(screen.getByText('Paz'))
     expect(screen.getByText('Bench Press')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Wednesday'))
+    fireEvent.click(screen.getByText('Çar'))
     expect(screen.getByText('Squat')).toBeInTheDocument()
   })
 })

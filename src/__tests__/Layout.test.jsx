@@ -25,44 +25,40 @@ describe('Layout', () => {
     expect(links).toHaveLength(4)
   })
 
-  it('renders dashboard link with icon', () => {
+  it('renders dashboard link with emoji icon', () => {
     const { container } = renderWithLayout()
     const sidebar = container.querySelector('aside')
     const dashboardLink = sidebar.querySelector('a[href="/"]')
     expect(dashboardLink).not.toBeNull()
-    expect(dashboardLink.textContent).toContain('Dashboard')
-    const icon = dashboardLink.querySelector('svg')
-    expect(icon).not.toBeNull()
+    expect(dashboardLink.textContent).toContain('Ana Sayfa')
+    expect(dashboardLink.textContent).toContain('\uD83C\uDFE0')
   })
 
-  it('renders log workout link with icon', () => {
+  it('renders log workout link with emoji icon', () => {
     const { container } = renderWithLayout()
     const sidebar = container.querySelector('aside')
     const logLink = sidebar.querySelector('a[href="/log"]')
     expect(logLink).not.toBeNull()
-    expect(logLink.textContent).toContain('Log Workout')
-    const icon = logLink.querySelector('svg')
-    expect(icon).not.toBeNull()
+    expect(logLink.textContent).toContain('Antrenman Kaydet')
+    expect(logLink.textContent).toContain('\uD83D\uDCCB')
   })
 
-  it('renders progress link with icon', () => {
+  it('renders progress link with emoji icon', () => {
     const { container } = renderWithLayout()
     const sidebar = container.querySelector('aside')
     const progressLink = sidebar.querySelector('a[href="/progress"]')
     expect(progressLink).not.toBeNull()
-    expect(progressLink.textContent).toContain('Progress')
-    const icon = progressLink.querySelector('svg')
-    expect(icon).not.toBeNull()
+    expect(progressLink.textContent).toContain('İlerleme')
+    expect(progressLink.textContent).toContain('\uD83D\uDCC8')
   })
 
-  it('renders settings link with icon', () => {
+  it('renders settings link with emoji icon', () => {
     const { container } = renderWithLayout()
     const sidebar = container.querySelector('aside')
     const settingsLink = sidebar.querySelector('a[href="/settings"]')
     expect(settingsLink).not.toBeNull()
-    expect(settingsLink.textContent).toContain('Settings')
-    const icon = settingsLink.querySelector('svg')
-    expect(icon).not.toBeNull()
+    expect(settingsLink.textContent).toContain('Ayarlar')
+    expect(settingsLink.textContent).toContain('\u2699\uFE0F')
   })
 
   it('renders toggle sidebar button in header', () => {
@@ -70,16 +66,16 @@ describe('Layout', () => {
     const header = container.querySelector('header')
     const btn = header.querySelector('button')
     expect(btn).not.toBeNull()
-    expect(btn.getAttribute('aria-label')).toBe('Toggle sidebar')
+    expect(btn.getAttribute('aria-label')).toBe('Kenar çubuğunu aç/kapat')
   })
 
-  it('applies hover styles on sidebar links', () => {
+  it('sidebar links have transition-colors class', () => {
     const { container } = renderWithLayout()
     const sidebar = container.querySelector('aside')
     const links = sidebar.querySelectorAll('a')
     expect(links).toHaveLength(4)
     links.forEach((link) => {
-      expect(link.getAttribute('class')).toContain('hover:bg-accent/10')
+      expect(link.getAttribute('class')).toContain('transition-colors')
     })
   })
 })

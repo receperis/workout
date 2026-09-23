@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import { DAYS_OF_WEEK } from '../types'
 
-function SectionCard({ title, children }) {
+function SectionCard({ title, children, collapsible, expanded, onToggle }) {
   return (
     <section
       className="rounded-xl overflow-hidden"
@@ -12,17 +12,40 @@ function SectionCard({ title, children }) {
         boxShadow: 'var(--shadow)',
       }}
     >
-      <div
-        className="px-5 py-3"
-        style={{ borderBottom: '1px solid var(--border)' }}
+      <button
+        type="button"
+        onClick={collapsible ? onToggle : undefined}
+        className="w-full px-5 py-3 flex items-center justify-between text-left"
+        style={{
+          cursor: collapsible ? 'pointer' : 'default',
+          background: 'transparent',
+          border: 'none',
+          borderBottom: '1px solid var(--border)',
+        }}
+        disabled={!collapsible}
       >
-        <h2 style={{ color: 'var(--text-heading)', fontSize: '17px', fontWeight: 600 }}>
+        <h2 style={{ color: 'var(--text-heading)', fontSize: '17px', fontWeight: 600, margin: 0 }}>
           {title}
         </h2>
-      </div>
-      <div className="px-5 py-4">
-        {children}
-      </div>
+        {collapsible && (
+          <svg
+            className="w-4 h-4 transition-transform"
+            style={{
+              color: 'var(--text-muted)',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            }}
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+        )}
+      </button>
+      {(!collapsible || expanded) && (
+        <div className="px-5 py-4">
+          {children}
+        </div>
+      )}
     </section>
   )
 }
@@ -33,6 +56,7 @@ function Settings() {
   const [editingId, setEditingId] = useState(-1)
   const [editValue, setEditValue] = useState('')
   const [expandedDay, setExpandedDay] = useState(null)
+  const [exercisesExpanded, setExercisesExpanded] = useState(false)
 
   function handleAdd(e) {
     e.preventDefault()
@@ -66,7 +90,7 @@ function Settings() {
     <div className="space-y-4">
       <h1 style={{ color: 'var(--text-heading)' }}>Ayarlar</h1>
 
-      <SectionCard title="Antrenmanlar">
+      <SectionCard title="Antrenmanlar" collapsible expanded={exercisesExpanded} onToggle={() => setExercisesExpanded((e) => !e)}>
         <form onSubmit={handleAdd} className="flex gap-2 mb-4">
           <input
             type="text"

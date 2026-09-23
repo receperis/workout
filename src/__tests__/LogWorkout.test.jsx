@@ -172,6 +172,65 @@ describe('LogWorkout - Pre-populate from existing session', () => {
     fireEvent.click(screen.getByText('Bench Press'))
     expect(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })).toHaveValue(null)
   })
+
+  it('displays session-only exercises not in schedule with separator', () => {
+    const todayDate = today()
+    const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const sessions = [{
+      id: 'session-1',
+      date: todayDate,
+      day: todayDay,
+      sets: [
+        { exerciseId: 1, reps: 15, weight: 60 },
+        { exerciseId: 2, reps: 15, weight: 80 },
+      ],
+    }]
+    renderLogWorkout('/log', { [todayDay]: [1] }, sessions)
+
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
+    expect(screen.getByText('Squats')).toBeInTheDocument()
+    expect(screen.getByText('Ek egzersizler')).toBeInTheDocument()
+  })
+
+  it('preserves session-only exercises on update without data loss', async () => {
+    const todayDate = today()
+    const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const sessions = [{
+      id: 'session-1',
+      date: todayDate,
+      day: todayDay,
+      sets: [
+        { exerciseId: 1, reps: 15, weight: 60 },
+        { exerciseId: 2, reps: 15, weight: 80 },
+      ],
+    }]
+    renderLogWorkout('/log', { [todayDay]: [1] }, sessions)
+
+    fireEvent.click(screen.getByText('Seansı Güncelle'))
+    await new Promise((r) => setTimeout(r, 100))
+
+    const data = JSON.parse(localStorage.getItem('workout-data'))
+    expect(data.sessions).toHaveLength(1)
+    expect(data.sessions[0].sets).toHaveLength(2)
+    expect(data.sessions[0].sets.find((s) => s.exerciseId === 2)).toEqual({ exerciseId: 2, reps: 15, weight: 80 })
+  })
+
+  it('shows session-only exercises even when schedule is empty', () => {
+    const todayDate = today()
+    const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const sessions = [{
+      id: 'session-1',
+      date: todayDate,
+      day: todayDay,
+      sets: [
+        { exerciseId: 2, reps: 15, weight: 80 },
+      ],
+    }]
+    renderLogWorkout('/log', { [todayDay]: [] }, sessions)
+
+    expect(screen.getByText('Squats')).toBeInTheDocument()
+    expect(screen.queryByText(/için antrenman atanmamış/)).not.toBeInTheDocument()
+  })
 })
 
 describe('LogWorkout - Past date read-only', () => {

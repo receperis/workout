@@ -8,7 +8,7 @@
 /**
  * @typedef {Object} WorkoutSet
  * @property {number} exerciseId - Exercise ID
- * @property {PyramidRep} reps - Number of reps (15, 13, 11, 9, or 7)
+ * @property {number} reps - Number of reps (15, 13, 11, 9, 7, or custom)
  * @property {number} weight - Weight in kilograms
  */
 
@@ -123,7 +123,8 @@ export function isWorkoutSet(value) {
   const obj = /** @type {Record<string, unknown>} */ (value)
   return (
     typeof obj.exerciseId === 'number' &&
-    PYRAMID_REPS.includes(/** @type {PyramidRep} */ (obj.reps)) &&
+    typeof obj.reps === 'number' &&
+    obj.reps > 0 &&
     typeof obj.weight === 'number' &&
     obj.weight > 0
   )

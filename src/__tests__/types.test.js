@@ -104,8 +104,10 @@ describe('isWorkoutSet', () => {
     }
   })
 
-  it('returns false for invalid reps', () => {
-    expect(isWorkoutSet({ exerciseId: 1, reps: 10, weight: 100 })).toBe(false)
+  it('returns true for custom reps (non-pyramid)', () => {
+    expect(isWorkoutSet({ exerciseId: 1, reps: 10, weight: 100 })).toBe(true)
+    expect(isWorkoutSet({ exerciseId: 1, reps: 3, weight: 50 })).toBe(true)
+    expect(isWorkoutSet({ exerciseId: 1, reps: 20, weight: 30 })).toBe(true)
   })
 
   it('returns false for negative weight', () => {
@@ -114,6 +116,14 @@ describe('isWorkoutSet', () => {
 
   it('returns false for zero weight', () => {
     expect(isWorkoutSet({ exerciseId: 1, reps: 15, weight: 0 })).toBe(false)
+  })
+
+  it('returns false for zero reps', () => {
+    expect(isWorkoutSet({ exerciseId: 1, reps: 0, weight: 100 })).toBe(false)
+  })
+
+  it('returns false for negative reps', () => {
+    expect(isWorkoutSet({ exerciseId: 1, reps: -5, weight: 100 })).toBe(false)
   })
 
   it('returns false for non-object inputs', () => {
@@ -189,7 +199,13 @@ describe('isWorkoutSession', () => {
     expect(
       isWorkoutSession({
         ...validSession,
-        sets: [{ exerciseId: 1, reps: 10, weight: 60 }],
+        sets: [{ exerciseId: 1, reps: 0, weight: 60 }],
+      }),
+    ).toBe(false)
+    expect(
+      isWorkoutSession({
+        ...validSession,
+        sets: [{ exerciseId: 1, reps: -1, weight: 60 }],
       }),
     ).toBe(false)
   })

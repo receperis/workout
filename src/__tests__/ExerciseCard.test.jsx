@@ -160,3 +160,107 @@ describe('ExerciseCard - readOnly', () => {
     expect(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })).toBeInTheDocument()
   })
 })
+
+describe('ExerciseCard - custom sets', () => {
+  it('shows "Özel set ekle" button when expanded and not readOnly', () => {
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} />)
+    expandCard()
+    expect(screen.getByText('Özel set ekle')).toBeInTheDocument()
+  })
+
+  it('does not show add button when readOnly', () => {
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} readOnly />)
+    expandCard()
+    expect(screen.queryByText('Özel set ekle')).not.toBeInTheDocument()
+  })
+
+  it('adds a custom row when clicking the add button', () => {
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} />)
+    expandCard()
+    fireEvent.click(screen.getByText('Özel set ekle'))
+    expect(screen.getByLabelText('Bench Press özel tekrar sayısı')).toBeInTheDocument()
+    expect(screen.getByLabelText('Bench Press özel tekrar ağırlığı')).toBeInTheDocument()
+  })
+
+  it('calls onChange with custom sets included', () => {
+    let receivedSets = []
+    const onChange = (sets) => { receivedSets = sets }
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={onChange} />)
+    expandCard()
+    fireEvent.click(screen.getByText('Özel set ekle'))
+    const repsInput = screen.getByLabelText('Bench Press özel tekrar sayısı')
+    const weightInput = screen.getByLabelText('Bench Press özel tekrar ağırlığı')
+    fireEvent.change(repsInput, { target: { value: '10' } })
+    fireEvent.change(weightInput, { target: { value: '25' } })
+    expect(receivedSets).toHaveLength(6)
+    expect(receivedSets[5]).toEqual({ exerciseId: 1, reps: 10, weight: 25 })
+  })
+
+  it('calculates total including custom reps', () => {
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} />)
+    expandCard()
+    // Set pyramid: 15 reps at 20kg = 300
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' }), { target: { value: '20' } })
+    // Add custom: 10 reps at 25kg = 250
+    fireEvent.click(screen.getByText('Özel set ekle'))
+    fireEvent.change(screen.getByLabelText('Bench Press özel tekrar sayısı'), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText('Bench Press özel tekrar ağırlığı'), { target: { value: '25' } })
+    // Total: 300 + 250 = 550
+    expect(screen.getByText('Toplam: 550 kg')).toBeInTheDocument()
+  })
+
+  it('removes a custom row when clicking the remove button', () => {
+    let receivedSets = []
+    const onChange = (sets) => { receivedSets = sets }
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={onChange} />)
+    expandCard()
+    fireEvent.click(screen.getByText('Özel set ekle'))
+    fireEvent.change(screen.getByLabelText('Bench Press özel tekrar sayısı'), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText('Bench Press özel tekrar ağırlığı'), { target: { value: '25' } })
+    expect(receivedSets).toHaveLength(6)
+    // Remove the custom set
+    fireEvent.click(screen.getByLabelText('Özel seti sil'))
+    expect(receivedSets).toHaveLength(5)
+    expect(screen.queryByLabelText('Bench Press özel tekrar sayısı')).not.toBeInTheDocument()
+  })
+
+  it('initializes custom sets from initialSets with non-pyramid reps', () => {
+    const initialSets = [
+      { exerciseId: 1, reps: 15, weight: 60 },
+      { exerciseId: 1, reps: 13, weight: 65 },
+      { exerciseId: 1, reps: 11, weight: 70 },
+      { exerciseId: 1, reps: 9, weight: 75 },
+      { exerciseId: 1, reps: 7, weight: 80 },
+      { exerciseId: 1, reps: 10, weight: 50 },
+    ]
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} initialSets={initialSets} />)
+    expandCard()
+    expect(screen.getByLabelText('Bench Press özel tekrar sayısı')).toHaveValue(10)
+    expect(screen.getByLabelText('Bench Press özel tekrar ağırlığı')).toHaveValue(50)
+  })
+
+  it('shows custom reps in collapsed summary', () => {
+    const initialSets = [
+      { exerciseId: 1, reps: 15, weight: 60 },
+      { exerciseId: 1, reps: 13, weight: 65 },
+      { exerciseId: 1, reps: 11, weight: 70 },
+      { exerciseId: 1, reps: 9, weight: 75 },
+      { exerciseId: 1, reps: 7, weight: 80 },
+      { exerciseId: 1, reps: 10, weight: 50 },
+    ]
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} initialSets={initialSets} />)
+    // Starts collapsed by default, expand then collapse to see summary
+    expandCard()
+    fireEvent.click(screen.getByText('Bench Press'))
+    expect(screen.getByText(/10×50/)).toBeInTheDocument()
+  })
+
+  it('allows adding multiple custom rows', () => {
+    render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} />)
+    expandCard()
+    fireEvent.click(screen.getByText('Özel set ekle'))
+    fireEvent.click(screen.getByText('Özel set ekle'))
+    const repsInputs = screen.getAllByLabelText('Bench Press özel tekrar sayısı')
+    expect(repsInputs).toHaveLength(2)
+  })
+})

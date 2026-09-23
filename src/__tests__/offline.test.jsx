@@ -27,7 +27,7 @@ vi.mock('../googleDrive', () => ({
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
 function TestComponent() {
-  const { state, dispatch, signIn, signOut, syncStatus, signedIn, online } = useWorkout()
+  const { state, dispatch, signIn, signOut, syncNow, syncStatus, signedIn, online } = useWorkout()
   return (
     <div>
       <span data-testid="exercises">{JSON.stringify(state.exercises)}</span>
@@ -37,6 +37,7 @@ function TestComponent() {
       <button onClick={() => dispatch({ type: 'ADD_EXERCISE', payload: 'Bench Press' })}>
         Add Exercise
       </button>
+      <button onClick={() => syncNow()}>Sync Now</button>
       <button onClick={() => signIn()}>Sign In</button>
       <button onClick={() => signOut()}>Sign Out</button>
     </div>
@@ -99,7 +100,7 @@ describe('offline detection', () => {
 })
 
 describe('sync behavior when offline', () => {
-  it('sets error status when offline while signed in', async () => {
+  it('sets error status when offline while signed in and calling syncNow', async () => {
     Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
@@ -112,10 +113,11 @@ describe('sync behavior when offline', () => {
       await flush()
     })
 
+    mockSaveToDrive.mockClear()
     Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
 
     await act(async () => {
-      screen.getByText('Add Exercise').click()
+      screen.getByText('Sync Now').click()
       await flush()
     })
 
@@ -123,7 +125,8 @@ describe('sync behavior when offline', () => {
     expect(mockSaveToDrive).not.toHaveBeenCalled()
   })
 
-  it('sets error status when Drive sync fails', async () => {
+  it('does not auto-sync on state change when offline', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -135,19 +138,21 @@ describe('sync behavior when offline', () => {
       await flush()
     })
 
-    mockSaveToDrive.mockRejectedValueOnce(new Error('Network error'))
+    mockSaveToDrive.mockClear()
+    Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
 
     await act(async () => {
       screen.getByText('Add Exercise').click()
       await flush()
     })
 
-    expect(screen.getByTestId('syncStatus')).toHaveTextContent('error')
+    expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
+    expect(mockSaveToDrive).not.toHaveBeenCalled()
   })
 })
 
 describe('sync succeeds when online', () => {
-  it('syncs to Drive after state change when online', async () => {
+  it('does not auto-sync on state change when online', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -159,14 +164,14 @@ describe('sync succeeds when online', () => {
       await flush()
     })
 
+    mockSaveToDrive.mockClear()
+
     await act(async () => {
       screen.getByText('Add Exercise').click()
       await flush()
     })
 
-    expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
-      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 28, name: 'Bench Press' }],
-    }))
+    expect(mockSaveToDrive).not.toHaveBeenCalled()
     expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
   })
 })

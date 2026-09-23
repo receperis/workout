@@ -26,6 +26,11 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
       return existing?.weight || ''
     }),
   )
+  const [customSets, setCustomSets] = useState(() =>
+    initialSets
+      ?.filter((s) => !PYRAMID_REPS.includes(s.reps))
+      .map((s) => ({ reps: s.reps, weight: s.weight === 0 ? '' : String(s.weight) })) || [],
+  )
   const [viewerImage, setViewerImage] = useState(null)
 
   const prevReadOnly = useRef(readOnly)
@@ -35,18 +40,28 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
   }, [readOnly])
 
   useEffect(() => {
-    const sets = PYRAMID_REPS.map((reps, i) => ({
+    const pyramidSets = PYRAMID_REPS.map((reps, i) => ({
       exerciseId,
       reps,
       weight: weights[i] === '' ? 0 : Number(weights[i]),
     }))
-    onChange(sets)
-  }, [weights, exerciseId])
+    const extraSets = customSets.map((cs) => ({
+      exerciseId,
+      reps: cs.reps,
+      weight: cs.weight === '' ? 0 : Number(cs.weight),
+    }))
+    onChange([...pyramidSets, ...extraSets])
+  }, [weights, customSets, exerciseId])
 
-  const total = weights.reduce((sum, w, i) => {
+  const pyramidTotal = weights.reduce((sum, w, i) => {
     const weight = w === '' ? 0 : Number(w)
     return sum + PYRAMID_REPS[i] * weight
   }, 0)
+  const customTotal = customSets.reduce((sum, cs) => {
+    const weight = cs.weight === '' ? 0 : Number(cs.weight)
+    return sum + cs.reps * weight
+  }, 0)
+  const total = pyramidTotal + customTotal
 
   const handleChange = (index, value) => {
     setWeights((prev) => {
@@ -56,9 +71,34 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
     })
   }
 
+  const handleCustomChange = (index, field, value) => {
+    setCustomSets((prev) => {
+      const next = [...prev]
+      if (field === 'reps') {
+        next[index] = { ...next[index], reps: value === '' ? 0 : Math.max(0, Math.floor(Number(value))) }
+      } else {
+        next[index] = { ...next[index], weight: value === '' ? '' : Math.max(0, Number(value)) }
+      }
+      return next
+    })
+  }
+
+  const addCustomSet = () => {
+    setCustomSets((prev) => [...prev, { reps: 0, weight: '' }])
+  }
+
+  const removeCustomSet = (index) => {
+    setCustomSets((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const weightSummary = weights
     .map((w) => (w === '' ? '—' : String(w)))
     .join(' / ')
+  const customSummary = customSets
+    .filter((cs) => cs.reps > 0)
+    .map((cs) => `${cs.reps}×${cs.weight === '' ? '—' : cs.weight}`)
+    .join(' / ')
+  const fullSummary = [weightSummary, customSummary].filter(Boolean).join(' + ')
 
   return (
     <div
@@ -164,6 +204,112 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
               )}
             </div>
           ))}
+
+          {customSets.map((cs, i) => {
+            const prevIdx = PYRAMID_REPS.length + i
+            const prevWeight = previousWeights?.[prevIdx] || 0
+            return (
+              <div
+                key={`custom-${i}`}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5"
+                style={{ background: 'var(--surface-raised)' }}
+              >
+                <input
+                  type="number"
+                  min="1"
+                  disabled={readOnly}
+                  className="w-12 rounded-lg px-2 py-2.5 text-lg font-bold text-right tabular-nums outline-none"
+                  style={{
+                    background: readOnly ? 'var(--surface-raised)' : 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-muted)',
+                    opacity: readOnly ? 0.7 : 1,
+                  }}
+                  aria-label={`${exerciseName} özel tekrar sayısı`}
+                  value={cs.reps || ''}
+                  onChange={(e) => handleCustomChange(i, 'reps', e.target.value)}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  disabled={readOnly}
+                  className="flex-1 rounded-lg px-3 py-2.5 text-base tabular-nums outline-none"
+                  style={{
+                    background: readOnly ? 'var(--surface-raised)' : 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: readOnly ? 'var(--text-muted)' : 'var(--text-heading)',
+                    opacity: readOnly ? 0.7 : 1,
+                    width: '50%',
+                  }}
+                  aria-label={`${exerciseName} özel tekrar ağırlığı`}
+                  value={cs.weight}
+                  onChange={(e) => handleCustomChange(i, 'weight', e.target.value)}
+                />
+                <span className="text-sm shrink-0" style={{ color: 'var(--text-muted)' }}>kg</span>
+                {prevWeight > 0 && (
+                  <div
+                    className="shrink-0 rounded-md flex flex-col items-center justify-center"
+                    style={{
+                      width: '52px',
+                      height: '44px',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <span
+                      className="text-sm font-semibold tabular-nums leading-tight"
+                      style={{ color: 'var(--text-heading)' }}
+                    >
+                      {prevWeight}
+                    </span>
+                    <span
+                      className="leading-tight"
+                      style={{ fontSize: '10px', color: 'var(--text-muted)' }}
+                    >
+                      {formatShortDate(previousDate)}
+                    </span>
+                  </div>
+                )}
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => removeCustomSet(i)}
+                    className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full transition-colors cursor-pointer"
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-muted)',
+                    }}
+                    aria-label={`Özel seti sil`}
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )
+          })}
+
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={addCustomSet}
+              className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer"
+              style={{
+                background: 'transparent',
+                border: '1px dashed var(--border)',
+                color: 'var(--text-muted)',
+              }}
+              aria-label="Özel tekrar ekle"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Özel set ekle
+            </button>
+          )}
         </div>
       )}
 
@@ -172,7 +318,7 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
           className="px-5 pb-3 text-sm"
           style={{ color: readOnly ? 'var(--text-muted)' : 'var(--text-muted)' }}
         >
-          {weightSummary} kg
+          {fullSummary} kg
           {readOnly && <span className="ml-2 text-xs opacity-60">(salt okunur)</span>}
         </div>
       )}

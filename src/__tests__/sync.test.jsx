@@ -236,7 +236,7 @@ describe('signIn sync flow', () => {
 })
 
 describe('Drive sync on state change', () => {
-  it('pushes state to Drive when signed in', async () => {
+  it('does not auto-push state to Drive on state change', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -255,9 +255,7 @@ describe('Drive sync on state change', () => {
       await flush()
     })
 
-    expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
-      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 28, name: 'Bench Press' }],
-    }))
+    expect(mockSaveToDrive).not.toHaveBeenCalled()
   })
 
   it('does not push to Drive when not signed in', async () => {
@@ -271,7 +269,7 @@ describe('Drive sync on state change', () => {
     expect(mockSaveToDrive).not.toHaveBeenCalled()
   })
 
-  it('sets syncStatus to syncing then idle on successful sync', async () => {
+  it('does not change syncStatus on state change', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -292,28 +290,6 @@ describe('Drive sync on state change', () => {
     })
 
     expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
-  })
-
-  it('sets syncStatus to error on failed sync', async () => {
-    mockSignedIn = true
-    mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
-    mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
-
-    renderWithProvider()
-
-    await act(async () => {
-      screen.getByText('Sign In').click()
-      await flush()
-    })
-
-    mockSaveToDrive.mockRejectedValueOnce(new Error('Network error'))
-
-    await act(async () => {
-      screen.getByText('Add Exercise').click()
-      await flush()
-    })
-
-    expect(screen.getByTestId('syncStatus')).toHaveTextContent('error')
   })
 })
 

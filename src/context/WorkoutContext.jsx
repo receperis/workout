@@ -11,6 +11,7 @@ import {
   restoreSession,
   saveToDrive,
 } from '../googleDrive'
+import SyncConflictModal from '../components/SyncConflictModal'
 
 const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutContextValue | null>} */ (null))
 
@@ -62,6 +63,49 @@ export function mergeData(local, remote) {
   const sessions = [...sessionMap.values()]
 
   return { exercises, schedule, sessions }
+}
+
+/**
+ * @typedef {Object} SyncConflict
+ * @property {string} date
+ * @property {string} day
+ * @property {string} exerciseName
+ * @property {import('../types').PyramidRep} reps
+ * @property {number} localWeight
+ * @property {number} driveWeight
+ */
+
+/**
+ * @param {import('../types').WorkoutData} local
+ * @param {import('../types').WorkoutData} remote
+ * @returns {SyncConflict[]}
+ */
+export function detectConflicts(local, remote) {
+  const conflicts = []
+  for (const remoteSession of remote.sessions) {
+    const localSession = local.sessions.find(
+      (s) => s.date === remoteSession.date && s.day === remoteSession.day,
+    )
+    if (!localSession) continue
+    for (const remoteSet of remoteSession.sets) {
+      const localSet = localSession.sets.find(
+        (s) => s.exerciseId === remoteSet.exerciseId && s.reps === remoteSet.reps,
+      )
+      if (!localSet) continue
+      if (localSet.weight !== remoteSet.weight) {
+        const exercise = local.exercises.find((e) => e.id === remoteSet.exerciseId)
+        conflicts.push({
+          date: remoteSession.date,
+          day: remoteSession.day,
+          exerciseName: exercise?.name || String(remoteSet.exerciseId),
+          reps: remoteSet.reps,
+          localWeight: localSet.weight,
+          driveWeight: remoteSet.weight,
+        })
+      }
+    }
+  }
+  return conflicts
 }
 
 /**
@@ -134,6 +178,8 @@ export function WorkoutProvider({ children }) {
   const [syncStatus, setSyncStatus] = useState(/** @type {SyncStatus} */ ('idle'))
   const [signedIn, setSignedIn] = useState(() => isSignedIn())
   const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
+  const [pendingConflicts, setPendingConflicts] = useState(/** @type {{ conflicts: SyncConflict[], driveData: import('../types').WorkoutData } | null} */ (null))
+  const pendingDriveDataRef = useRef(/** @type {import('../types').WorkoutData | null} */ (null))
 
   stateRef.current = state
 
@@ -241,6 +287,23 @@ export function WorkoutProvider({ children }) {
     }
   }, [])
 
+  const confirmSync = useCallback(async () => {
+    const driveData = pendingDriveDataRef.current
+    if (!driveData) return
+    const merged = mergeData(stateRef.current, driveData)
+    await saveToDrive(fileIdRef.current, merged)
+    dispatch({ type: 'LOAD_DATA', payload: merged })
+    pendingDriveDataRef.current = null
+    setPendingConflicts(null)
+    setSyncStatus('idle')
+  }, [])
+
+  const cancelSync = useCallback(() => {
+    pendingDriveDataRef.current = null
+    setPendingConflicts(null)
+    setSyncStatus('idle')
+  }, [])
+
   const syncNow = useCallback(async () => {
     if (!isSignedIn() || !fileIdRef.current) return
     if (!navigator.onLine) {
@@ -249,7 +312,16 @@ export function WorkoutProvider({ children }) {
     }
     setSyncStatus('syncing')
     try {
-      await saveToDrive(fileIdRef.current, stateRef.current)
+      const driveData = await loadFromDrive(fileIdRef.current)
+      const conflicts = detectConflicts(stateRef.current, driveData)
+      if (conflicts.length > 0) {
+        pendingDriveDataRef.current = driveData
+        setPendingConflicts({ conflicts, driveData })
+        return
+      }
+      const merged = mergeData(stateRef.current, driveData)
+      await saveToDrive(fileIdRef.current, merged)
+      dispatch({ type: 'LOAD_DATA', payload: merged })
       setSyncStatus('idle')
     } catch (e) {
       const err = e instanceof Error ? e.message : String(e)
@@ -270,6 +342,12 @@ export function WorkoutProvider({ children }) {
       value={{ state, dispatch, signIn, signOut, syncNow, syncStatus, signedIn, online, resetData }}
     >
       {children}
+      <SyncConflictModal
+        open={pendingConflicts !== null}
+        conflicts={pendingConflicts?.conflicts || []}
+        onConfirm={confirmSync}
+        onCancel={cancelSync}
+      />
     </WorkoutContext.Provider>
   )
 }

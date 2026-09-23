@@ -23,8 +23,23 @@ const REP_HEX = {
   7: '#8b5cf6',
 }
 
-function CompactView({ data }) {
-  const tiersWithData = PYRAMID_REPS.filter(
+const CUSTOM_REP_COLOR = '#6b7280'
+
+function getCustomRepsFromSessions(sessions, exerciseId) {
+  const repsSet = new Set()
+  for (const session of sessions) {
+    for (const set of session.sets) {
+      if (set.exerciseId === exerciseId && !PYRAMID_REPS.includes(set.reps) && set.weight > 0) {
+        repsSet.add(set.reps)
+      }
+    }
+  }
+  return Array.from(repsSet).sort((a, b) => b - a)
+}
+
+function CompactView({ data, customReps }) {
+  const allReps = [...PYRAMID_REPS, ...customReps]
+  const tiersWithData = allReps.filter(
     (reps) => data.some((point) => point[`${reps} reps`] > 0),
   )
 
@@ -39,18 +54,19 @@ function CompactView({ data }) {
       {tiersWithData.map((reps) => {
         const values = data.map((point) => point[`${reps} reps`]).filter((v) => v > 0)
         const lastWeight = lastPoint[`${reps} reps`]
+        const color = REP_HEX[reps] || CUSTOM_REP_COLOR
         return (
           <div key={reps} className="flex items-center gap-3">
             <span
               className="text-xs font-semibold w-8 text-right shrink-0"
-              style={{ color: REP_HEX[reps] }}
+              style={{ color }}
             >
               {reps}
             </span>
             <div className="flex-1 min-w-0">
               <Sparkline
                 data={values}
-                color={REP_HEX[reps]}
+                color={color}
                 height={24}
               />
             </div>
@@ -64,7 +80,9 @@ function CompactView({ data }) {
   )
 }
 
-function FullView({ data, dateRange, setDateRange }) {
+function FullView({ data, dateRange, setDateRange, customReps }) {
+  const allReps = [...PYRAMID_REPS, ...customReps]
+
   return (
     <div>
       <div className="mb-3">
@@ -119,12 +137,12 @@ function FullView({ data, dateRange, setDateRange }) {
             }}
           />
           <Legend />
-          {PYRAMID_REPS.map((reps) => (
+          {allReps.map((reps) => (
             <Line
               key={reps}
               type="monotone"
               dataKey={`${reps} reps`}
-              stroke={REP_HEX[reps]}
+              stroke={REP_HEX[reps] || CUSTOM_REP_COLOR}
               activeDot={{ r: 6 }}
               dot={true}
             />
@@ -139,6 +157,11 @@ function WeightProgression({ exerciseId, compact = false }) {
   const { state: { sessions } } = useWorkout()
   const [dateRange, setDateRange] = React.useState('all')
 
+  const customReps = React.useMemo(
+    () => getCustomRepsFromSessions(sessions, exerciseId),
+    [sessions, exerciseId],
+  )
+
   const now = new Date()
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(now.getDate() - 30)
@@ -146,6 +169,8 @@ function WeightProgression({ exerciseId, compact = false }) {
   ninetyDaysAgo.setDate(now.getDate() - 90)
 
   const cutoffDate = dateRange === '30d' ? thirtyDaysAgo : dateRange === '90d' ? ninetyDaysAgo : null
+
+  const allReps = [...PYRAMID_REPS, ...customReps]
 
   const filteredSessions = sessions.filter((session) => {
     if (!cutoffDate) return session.sets.some((set) => set.exerciseId === exerciseId)
@@ -156,7 +181,7 @@ function WeightProgression({ exerciseId, compact = false }) {
   const data = filteredSessions
     .map((session) => {
       const point = { date: session.date }
-      for (const reps of PYRAMID_REPS) {
+      for (const reps of allReps) {
         const set = session.sets.find(
           (s) => s.exerciseId === exerciseId && s.reps === reps,
         )
@@ -164,22 +189,22 @@ function WeightProgression({ exerciseId, compact = false }) {
       }
       return point
     })
-    .filter((point) => PYRAMID_REPS.some((r) => point[`${r} reps`] > 0))
+    .filter((point) => allReps.some((r) => point[`${r} reps`] > 0))
 
   if (compact) {
-    return <CompactView data={data} exerciseId={exerciseId} />
+    return <CompactView data={data} exerciseId={exerciseId} customReps={customReps} />
   }
 
   return (
     <div>
-      <FullView data={data} dateRange={dateRange} setDateRange={setDateRange} />
+      <FullView data={data} dateRange={dateRange} setDateRange={setDateRange} customReps={customReps} />
 
       {data.length === 0 ? (
         <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Bu dönem için veri yok.</p>
       ) : (
         <div className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>
           <span className="font-medium" style={{ color: 'var(--text)' }}>Son seans: </span>
-          {PYRAMID_REPS.filter((r) => data[data.length - 1][`${r} reps`] > 0)
+          {allReps.filter((r) => data[data.length - 1][`${r} reps`] > 0)
             .map((r) => `${r} tekrar → ${data[data.length - 1][`${r} reps`]} kg`)
             .join(' | ')}
         </div>

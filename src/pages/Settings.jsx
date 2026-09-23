@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import { DAYS_OF_WEEK } from '../types'
+import ConfirmModal from '../components/ConfirmModal'
+import ImageViewer from '../components/ImageViewer'
 
 function SectionCard({ title, children, collapsible, expanded, onToggle }) {
   return (
@@ -51,12 +53,15 @@ function SectionCard({ title, children, collapsible, expanded, onToggle }) {
 }
 
 function Settings() {
-  const { state, dispatch, signedIn, signIn, signOut, syncNow, syncStatus } = useWorkout()
+  const { state, dispatch, signedIn, signIn, signOut, syncNow, syncStatus, resetData } = useWorkout()
   const [newExercise, setNewExercise] = useState('')
   const [editingId, setEditingId] = useState(-1)
   const [editValue, setEditValue] = useState('')
   const [expandedDay, setExpandedDay] = useState(null)
   const [exercisesExpanded, setExercisesExpanded] = useState(false)
+  const [viewerImage, setViewerImage] = useState(null)
+  const [viewerAlt, setViewerAlt] = useState('')
+  const [resetModalOpen, setResetModalOpen] = useState(false)
 
   function handleAdd(e) {
     e.preventDefault()
@@ -158,6 +163,19 @@ function Settings() {
                   </>
                 ) : (
                   <>
+                    {exercise.image && (
+                      <img
+                        src={exercise.image}
+                        alt={exercise.name}
+                        className="w-10 h-10 rounded-lg object-cover shrink-0 cursor-pointer"
+                        style={{ border: '1px solid var(--border)' }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setViewerImage(exercise.image)
+                          setViewerAlt(exercise.name)
+                        }}
+                      />
+                    )}
                     <span className="flex-1 text-sm" style={{ color: 'var(--text-heading)' }}>{exercise.name}</span>
                     <button
                       onClick={() => startRename(exercise.id, exercise.name)}
@@ -267,6 +285,18 @@ function Settings() {
                                 </svg>
                               )}
                             </div>
+                            {exercise.image && (
+                              <img
+                                src={exercise.image}
+                                alt={exercise.name}
+                                className="w-6 h-6 rounded object-cover cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setViewerImage(exercise.image)
+                                  setViewerAlt(exercise.name)
+                                }}
+                              />
+                            )}
                             {exercise.name}
                           </label>
                         )
@@ -329,6 +359,32 @@ function Settings() {
           </button>
         )}
       </SectionCard>
+
+      <SectionCard title="Sıfırla">
+        <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
+          Varsayılana sıfırla: antrenman adları ve program başlangıca döner, egzersiz geçmişi korunur.
+        </p>
+        <button
+          onClick={() => setResetModalOpen(true)}
+          className="rounded-lg px-4 py-2.5 text-sm font-semibold"
+          style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca' }}
+        >
+          Her Şeyi Sıfırla
+        </button>
+      </SectionCard>
+
+      <ConfirmModal
+        open={resetModalOpen}
+        title="Her Şeyi Sıfırla"
+        message="Antrenman adları ve program varsayılana dönecek. Egzersiz geçmişi korunur. Emin misiniz?"
+        confirmLabel="Sıfırla"
+        onConfirm={async () => {
+          setResetModalOpen(false)
+          await resetData()
+        }}
+        onCancel={() => setResetModalOpen(false)}
+      />
+      <ImageViewer src={viewerImage} alt={viewerAlt} onClose={() => { setViewerImage(null); setViewerAlt('') }} />
     </div>
   )
 }

@@ -53,8 +53,8 @@ describe('WorkoutProvider localStorage integration', () => {
     )
 
     const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
-    expect(exercises).toHaveLength(10)
-    expect(exercises[0]).toEqual({ id: 1, name: 'Bench Press' })
+    expect(exercises).toHaveLength(27)
+    expect(exercises[0]).toMatchObject({ id: 1, name: 'Bench Press' })
   })
 
   it('falls back to empty state when localStorage is empty', () => {
@@ -65,7 +65,7 @@ describe('WorkoutProvider localStorage integration', () => {
     )
 
     const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
-    expect(exercises).toHaveLength(10)
+    expect(exercises).toHaveLength(27)
   })
 
   it('persists state changes to localStorage', () => {
@@ -80,8 +80,8 @@ describe('WorkoutProvider localStorage integration', () => {
     })
 
     const saved = JSON.parse(localStorage.getItem('workout-data'))
-    expect(saved.exercises).toHaveLength(11)
-    expect(saved.exercises[10]).toEqual({ id: 11, name: 'Squats' })
+    expect(saved.exercises).toHaveLength(28)
+    expect(saved.exercises[27]).toEqual({ id: 28, name: 'Squats' })
   })
 
   it('saves valid WorkoutData structure', () => {

@@ -27,7 +27,8 @@ function renderWithRouter(initialRoute = '/') {
 describe('React Router setup', () => {
   it('renders Dashboard on /', () => {
     renderWithRouter('/')
-    expect(screen.getByRole('heading', { name: /cumartesi/i })).toBeInTheDocument()
+    const today = new Date().toLocaleString('tr-TR', { weekday: 'long' })
+    expect(screen.getByRole('heading', { name: today })).toBeInTheDocument()
   })
 
   it('renders LogWorkout on /log', () => {

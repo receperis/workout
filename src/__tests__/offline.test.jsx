@@ -165,7 +165,7 @@ describe('sync succeeds when online', () => {
     })
 
     expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
-      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 11, name: 'Bench Press' }],
+      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 28, name: 'Bench Press' }],
     }))
     expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
   })

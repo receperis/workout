@@ -51,6 +51,12 @@ function addExercise(name) {
   fireEvent.click(screen.getByRole('button', { name: /ekle/i }))
 }
 
+function expandExercisesSection() {
+  act(() => {
+    screen.getByText('Antrenmanlar').click()
+  })
+}
+
 function getExercisesSection() {
   return screen.getByText('Antrenmanlar').closest('section')
 }
@@ -58,18 +64,21 @@ function getExercisesSection() {
 describe('Settings - Exercise List', () => {
   it('renders pre-populated exercises', () => {
     renderSettings()
+    expandExercisesSection()
     expect(screen.getByText('Bench Press')).toBeInTheDocument()
-    expect(screen.getByText('Squats')).toBeInTheDocument()
+    expect(screen.getByText('Smith Incline Bench Press')).toBeInTheDocument()
   })
 
   it('adds an exercise', () => {
     renderSettings()
+    expandExercisesSection()
     addExercise('Dumbbell Curl')
     expect(within(getExercisesSection()).getByText('Dumbbell Curl')).toBeInTheDocument()
   })
 
   it('does not add duplicate exercise', () => {
     renderSettings()
+    expandExercisesSection()
     addExercise('Dumbbell Curl')
     addExercise('Dumbbell Curl')
     const exercisesSection = getExercisesSection()
@@ -78,23 +87,26 @@ describe('Settings - Exercise List', () => {
 
   it('does not add empty exercise', () => {
     renderSettings()
+    expandExercisesSection()
     fireEvent.click(screen.getByRole('button', { name: /ekle/i }))
     expect(screen.getByText('Bench Press')).toBeInTheDocument()
-    expect(screen.getByText('Squats')).toBeInTheDocument()
+    expect(screen.getByText('Smith Incline Bench Press')).toBeInTheDocument()
   })
 
   it('removes an exercise', () => {
     renderSettings()
+    expandExercisesSection()
     const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
       within(benchPressRow).getByText('Kaldır').click()
     })
     expect(screen.queryByText('Bench Press')).not.toBeInTheDocument()
-    expect(screen.getByText('Squats')).toBeInTheDocument()
+    expect(screen.getByText('Smith Incline Bench Press')).toBeInTheDocument()
   })
 
   it('renames an exercise', () => {
     renderSettings()
+    expandExercisesSection()
     const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
       within(benchPressRow).getByText('Yeniden Adlandır').click()
@@ -108,6 +120,7 @@ describe('Settings - Exercise List', () => {
 
   it('cancels rename on Escape', () => {
     renderSettings()
+    expandExercisesSection()
     const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
       within(benchPressRow).getByText('Yeniden Adlandır').click()
@@ -120,6 +133,7 @@ describe('Settings - Exercise List', () => {
 
   it('renames via Enter key', () => {
     renderSettings()
+    expandExercisesSection()
     const benchPressRow = screen.getByText('Bench Press').closest('div')
     act(() => {
       within(benchPressRow).getByText('Yeniden Adlandır').click()
@@ -155,11 +169,12 @@ describe('Settings - Schedule Editor', () => {
       screen.getByText('Pazartesi').click()
     })
     const scheduleSection = screen.getByText('Program').closest('section')
-    const checkbox = within(scheduleSection).getAllByRole('checkbox')[0]
+    const checkboxes = within(scheduleSection).getAllByRole('checkbox')
+    const unchecked = checkboxes.find((cb) => !cb.checked)
     act(() => {
-      fireEvent.click(checkbox)
+      fireEvent.click(unchecked)
     })
-    expect(checkbox).toBeChecked()
+    expect(unchecked).toBeChecked()
   })
 
   it('unassigns exercise from a day on second toggle', () => {
@@ -168,15 +183,16 @@ describe('Settings - Schedule Editor', () => {
       screen.getByText('Pazartesi').click()
     })
     const scheduleSection = screen.getByText('Program').closest('section')
-    const checkbox = within(scheduleSection).getAllByRole('checkbox')[0]
+    const checkboxes = within(scheduleSection).getAllByRole('checkbox')
+    const checked = checkboxes.find((cb) => cb.checked)
     act(() => {
-      fireEvent.click(checkbox)
+      fireEvent.click(checked)
     })
-    expect(checkbox).toBeChecked()
+    expect(checked).not.toBeChecked()
     act(() => {
-      fireEvent.click(checkbox)
+      fireEvent.click(checked)
     })
-    expect(checkbox).not.toBeChecked()
+    expect(checked).toBeChecked()
   })
 
   it('can assign multiple exercises to a day', () => {
@@ -186,14 +202,15 @@ describe('Settings - Schedule Editor', () => {
     })
     const scheduleSection = screen.getByText('Program').closest('section')
     const checkboxes = within(scheduleSection).getAllByRole('checkbox')
+    const unchecked = checkboxes.filter((cb) => !cb.checked)
     act(() => {
-      fireEvent.click(checkboxes[0])
+      fireEvent.click(unchecked[0])
     })
     act(() => {
-      fireEvent.click(checkboxes[1])
+      fireEvent.click(unchecked[1])
     })
-    expect(checkboxes[0]).toBeChecked()
-    expect(checkboxes[1]).toBeChecked()
+    expect(unchecked[0]).toBeChecked()
+    expect(unchecked[1]).toBeChecked()
   })
 })
 

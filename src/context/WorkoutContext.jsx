@@ -15,7 +15,7 @@ import {
 const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutContextValue | null>} */ (null))
 
 /**
- * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'RENAME_EXERCISE' | 'LOG_SESSION' | 'UPDATE_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA'} WorkoutActionType
+ * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'RENAME_EXERCISE' | 'LOG_SESSION' | 'UPDATE_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA' | 'RESET_DATA'} WorkoutActionType
  */
 
 /**
@@ -35,6 +35,7 @@ const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutC
  * @property {() => Promise<void>} signIn
  * @property {() => void} signOut
  * @property {() => Promise<void>} syncNow
+ * @property {() => Promise<void>} resetData
  * @property {SyncStatus} syncStatus
  * @property {boolean} signedIn
  * @property {boolean} online
@@ -114,6 +115,9 @@ function workoutReducer(state, action) {
 
     case 'LOAD_DATA':
       return action.payload
+
+    case 'RESET_DATA':
+      return { ...EMPTY_WORKOUT_DATA, sessions: state.sessions }
 
     default:
       return state
@@ -254,6 +258,20 @@ export function WorkoutProvider({ children }) {
     setSyncStatus('idle')
   }, [])
 
+  const resetData = useCallback(async () => {
+    dispatch({ type: 'RESET_DATA' })
+    if (isSignedIn() && fileIdRef.current) {
+      try {
+        const driveData = await loadFromDrive(fileIdRef.current)
+        const merged = mergeData(stateRef.current, driveData)
+        skipSyncRef.current = true
+        dispatch({ type: 'LOAD_DATA', payload: merged })
+      } catch {
+        // Drive may be unreachable — local reset still applied
+      }
+    }
+  }, [])
+
   const syncNow = useCallback(async () => {
     if (!isSignedIn() || !fileIdRef.current) return
     if (!navigator.onLine) {
@@ -280,7 +298,7 @@ export function WorkoutProvider({ children }) {
 
   return (
     <WorkoutContext.Provider
-      value={{ state, dispatch, signIn, signOut, syncNow, syncStatus, signedIn, online }}
+      value={{ state, dispatch, signIn, signOut, syncNow, syncStatus, signedIn, online, resetData }}
     >
       {children}
     </WorkoutContext.Provider>

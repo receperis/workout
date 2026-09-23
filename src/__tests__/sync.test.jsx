@@ -179,8 +179,8 @@ describe('signIn sync flow', () => {
   it('uses Drive data when local is empty', async () => {
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue({
-      exercises: [{ id: 2, name: 'Squats' }],
-      schedule: { Friday: [2] },
+      exercises: [{ id: 28, name: 'Squats' }],
+      schedule: { Friday: [28] },
       sessions: [{ id: 's1', date: '2026-09-15', day: 'Friday', sets: [] }],
     })
 
@@ -192,10 +192,10 @@ describe('signIn sync flow', () => {
       await flush()
     })
 
-    expect(screen.getByTestId('exercises')).toHaveTextContent(
-      JSON.stringify(EMPTY_WORKOUT_DATA.exercises),
-    )
-    expect(screen.getByTestId('schedule')).toHaveTextContent('{"Friday":[2]}')
+    const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
+    expect(exercises).toEqual([...EMPTY_WORKOUT_DATA.exercises, { id: 28, name: 'Squats' }])
+    const schedule = JSON.parse(screen.getByTestId('schedule').textContent)
+    expect(schedule).toEqual({ Friday: [28], ...EMPTY_WORKOUT_DATA.schedule })
     expect(screen.getByTestId('sessions')).toHaveTextContent(
       '[{"id":"s1","date":"2026-09-15","day":"Friday","sets":[]}]',
     )
@@ -256,7 +256,7 @@ describe('Drive sync on state change', () => {
     })
 
     expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
-      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 11, name: 'Bench Press' }],
+      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 28, name: 'Bench Press' }],
     }))
   })
 
@@ -394,7 +394,7 @@ describe('syncNow', () => {
     })
 
     expect(mockSaveToDrive).toHaveBeenCalledWith('file1', expect.objectContaining({
-      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 11, name: 'Bench Press' }],
+      exercises: [...EMPTY_WORKOUT_DATA.exercises, { id: 28, name: 'Bench Press' }],
     }))
   })
 

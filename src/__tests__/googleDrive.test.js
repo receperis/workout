@@ -15,6 +15,7 @@ import {
   loadFromDrive,
   saveToDrive,
 } from '../googleDrive'
+import { EMPTY_WORKOUT_DATA } from '../types'
 
 const GIS_URL = 'https://accounts.google.com/gsi/client'
 const GAPI_URL = 'https://apis.google.com/js/api.js'
@@ -431,8 +432,8 @@ describe('loadFromDrive', () => {
   it('loads and parses valid workout data', async () => {
     await signInWithToken()
     const validData = {
-      exercises: ['Bench Press'],
-      schedule: { Monday: ['Bench Press'] },
+      exercises: [{ id: 1, name: 'Bench Press' }],
+      schedule: { Monday: [1] },
       sessions: [],
     }
     mockFetch((url) => {
@@ -462,7 +463,7 @@ describe('loadFromDrive', () => {
     })
 
     const result = await loadFromDrive('file-1')
-    expect(result).toEqual({ exercises: [], schedule: {}, sessions: [] })
+    expect(result).toEqual(EMPTY_WORKOUT_DATA)
   })
 
   it('returns EMPTY_WORKOUT_DATA when data fails validation', async () => {
@@ -479,7 +480,7 @@ describe('loadFromDrive', () => {
     })
 
     const result = await loadFromDrive('file-1')
-    expect(result).toEqual({ exercises: [], schedule: {}, sessions: [] })
+    expect(result).toEqual(EMPTY_WORKOUT_DATA)
   })
 
   it('throws on Drive API errors', async () => {

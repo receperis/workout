@@ -27,9 +27,14 @@ describe('constants', () => {
     ])
   })
 
-  it('EMPTY_WORKOUT_DATA has 10 pre-populated exercises, empty schedule, and sessions', () => {
-    expect(EMPTY_WORKOUT_DATA.exercises).toHaveLength(10)
-    expect(EMPTY_WORKOUT_DATA.schedule).toEqual({})
+  it('EMPTY_WORKOUT_DATA has 27 pre-populated exercises, pre-filled schedule, and empty sessions', () => {
+    expect(EMPTY_WORKOUT_DATA.exercises).toHaveLength(27)
+    expect(Object.keys(EMPTY_WORKOUT_DATA.schedule)).toContain('Pazartesi')
+    expect(Object.keys(EMPTY_WORKOUT_DATA.schedule)).toContain('Çarşamba')
+    expect(Object.keys(EMPTY_WORKOUT_DATA.schedule)).toContain('Cuma')
+    expect(EMPTY_WORKOUT_DATA.schedule['Pazartesi']).toHaveLength(10)
+    expect(EMPTY_WORKOUT_DATA.schedule['Çarşamba']).toHaveLength(9)
+    expect(EMPTY_WORKOUT_DATA.schedule['Cuma']).toHaveLength(8)
     expect(EMPTY_WORKOUT_DATA.sessions).toEqual([])
   })
 })

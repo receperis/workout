@@ -337,23 +337,27 @@ function LogWorkout() {
           )}
 
           <div className="space-y-4">
-            {exercisesForDay.map((exerciseId, i) => (
-              <ExerciseCard
-                key={`${selectedDate}-${exerciseId}-${existingSession ? 'loaded' : 'empty'}`}
-                exerciseId={exerciseId}
-                exerciseName={exerciseNameById(state.exercises, exerciseId)}
-                initialSets={exerciseSets[exerciseId]}
-                previousWeights={previousWeightsByExercise[exerciseId]?.weights}
-                previousDate={previousWeightsByExercise[exerciseId]?.date}
-                onChange={(sets) => handleExerciseChange(exerciseId, sets)}
-                readOnly={isPast && !editing}
-                savedLabel={
-                  i === exercisesForDay.length - 1 && saved
-                    ? 'Seans kaydedildi!'
-                    : undefined
-                }
-              />
-            ))}
+            {exercisesForDay.map((exerciseId, i) => {
+              const exercise = state.exercises.find((e) => e.id === exerciseId)
+              return (
+                <ExerciseCard
+                  key={`${selectedDate}-${exerciseId}-${existingSession ? 'loaded' : 'empty'}`}
+                  exerciseId={exerciseId}
+                  exerciseName={exercise?.name || String(exerciseId)}
+                  exerciseImage={exercise?.image}
+                  initialSets={exerciseSets[exerciseId]}
+                  previousWeights={previousWeightsByExercise[exerciseId]?.weights}
+                  previousDate={previousWeightsByExercise[exerciseId]?.date}
+                  onChange={(sets) => handleExerciseChange(exerciseId, sets)}
+                  readOnly={isPast && !editing}
+                  savedLabel={
+                    i === exercisesForDay.length - 1 && saved
+                      ? 'Seans kaydedildi!'
+                      : undefined
+                  }
+                />
+              )
+            })}
           </div>
 
           {hasAnyWeights && (!isPast || editing) && (

@@ -87,9 +87,8 @@ describe('WorkoutContext', () => {
   it('provides initial state with pre-populated exercises', () => {
     renderWithProvider()
     const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
-    expect(exercises).toHaveLength(10)
-    expect(exercises[0]).toEqual({ id: 1, name: 'Bench Press' })
-    expect(screen.getByTestId('schedule')).toHaveTextContent('{}')
+    expect(exercises).toHaveLength(27)
+    expect(exercises[0]).toMatchObject({ id: 1, name: 'Bench Press' })
     expect(screen.getByTestId('sessions')).toHaveTextContent('[]')
   })
 
@@ -99,8 +98,8 @@ describe('WorkoutContext', () => {
       screen.getByText('Add Exercise').click()
     })
     const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
-    expect(exercises).toHaveLength(11)
-    expect(exercises[10]).toEqual({ id: 11, name: 'Bench Press' })
+    expect(exercises).toHaveLength(28)
+    expect(exercises[27]).toEqual({ id: 28, name: 'Bench Press' })
   })
 
   it('handles REMOVE_EXERCISE', () => {
@@ -109,7 +108,7 @@ describe('WorkoutContext', () => {
       screen.getByText('Remove Exercise').click()
     })
     const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
-    expect(exercises).toHaveLength(9)
+    expect(exercises).toHaveLength(26)
     expect(exercises.find((e) => e.id === 1)).toBeUndefined()
   })
 
@@ -119,8 +118,8 @@ describe('WorkoutContext', () => {
       screen.getByText('Rename Exercise').click()
     })
     const exercises = JSON.parse(screen.getByTestId('exercises').textContent)
-    expect(exercises).toHaveLength(10)
-    expect(exercises[0]).toEqual({ id: 1, name: 'Chest Press' })
+    expect(exercises).toHaveLength(27)
+    expect(exercises[0]).toMatchObject({ id: 1, name: 'Chest Press' })
   })
 
   it('handles LOG_SESSION', () => {

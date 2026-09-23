@@ -14,8 +14,8 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-function renderDashboard(data = { exercises: [], schedule: {}, sessions: [] }) {
-  localStorage.setItem('workout-data', JSON.stringify(data))
+function renderDashboard(data) {
+  if (data) localStorage.setItem('workout-data', JSON.stringify(data))
   return render(
     <MemoryRouter>
       <WorkoutProvider>
@@ -33,7 +33,12 @@ describe('Dashboard', () => {
   })
 
   it('shows exercise count', () => {
-    renderDashboard()
+    const today = new Date().toLocaleString('tr-TR', { weekday: 'long' })
+    renderDashboard({
+      exercises: [{ id: 1, name: 'Bench Press' }],
+      schedule: { [today]: [] },
+      sessions: [],
+    })
     expect(screen.getByText('Bugün için antrenman planlanmamış')).toBeInTheDocument()
   })
 

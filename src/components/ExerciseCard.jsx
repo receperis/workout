@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { PYRAMID_REPS } from '../types'
+import ImageViewer from './ImageViewer'
 
 const REP_ACCENT = {
   15: 'var(--rep-15)',
@@ -16,7 +17,7 @@ function formatShortDate(dateStr) {
   return `${month} ${day}`
 }
 
-function ExerciseCard({ exerciseId, exerciseName, onChange, initialSets, previousWeights, previousDate, savedLabel, readOnly }) {
+function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initialSets, previousWeights, previousDate, savedLabel, readOnly }) {
   const hasData = initialSets?.some((s) => s.weight > 0)
   const [collapsed, setCollapsed] = useState(readOnly ? !hasData : true)
   const [weights, setWeights] = useState(() =>
@@ -25,6 +26,7 @@ function ExerciseCard({ exerciseId, exerciseName, onChange, initialSets, previou
       return existing?.weight || ''
     }),
   )
+  const [viewerImage, setViewerImage] = useState(null)
 
   const prevReadOnly = useRef(readOnly)
   useEffect(() => {
@@ -76,9 +78,23 @@ function ExerciseCard({ exerciseId, exerciseName, onChange, initialSets, previou
         aria-expanded={!collapsed}
         aria-label={`${exerciseName}, ${collapsed ? 'genişlet' : 'daralt'}`}
       >
-        <h3 style={{ color: 'var(--text-heading)', fontSize: '17px', fontWeight: 600, margin: 0 }}>
-          {exerciseName}
-        </h3>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {exerciseImage && (
+            <img
+              src={exerciseImage}
+              alt={exerciseName}
+              className="w-12 h-12 rounded-lg object-cover shrink-0 cursor-pointer"
+              style={{ border: '1px solid var(--border)' }}
+              onClick={(e) => {
+                e.stopPropagation()
+                setViewerImage(exerciseImage)
+              }}
+            />
+          )}
+          <h3 style={{ color: 'var(--text-heading)', fontSize: '17px', fontWeight: 600, margin: 0 }}>
+            {exerciseName}
+          </h3>
+        </div>
         <svg
           className="w-4 h-4 shrink-0 transition-transform"
           style={{
@@ -116,6 +132,7 @@ function ExerciseCard({ exerciseId, exerciseName, onChange, initialSets, previou
                   border: '1px solid var(--border)',
                   color: readOnly ? 'var(--text-muted)' : 'var(--text-heading)',
                   opacity: readOnly ? 0.7 : 1,
+                  width: '50%',
                 }}
                 aria-label={`${exerciseName} ${reps} tekrar ağırlığı`}
                 value={weights[i]}
@@ -174,6 +191,7 @@ function ExerciseCard({ exerciseId, exerciseName, onChange, initialSets, previou
         </span>
         <span>Toplam: {total.toLocaleString()} kg</span>
       </div>
+      <ImageViewer src={viewerImage} alt={exerciseName} onClose={() => setViewerImage(null)} />
     </div>
   )
 }

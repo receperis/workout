@@ -133,42 +133,12 @@ export function WorkoutProvider({ children }) {
   const stateRef = useRef(state)
   const [syncStatus, setSyncStatus] = useState(/** @type {SyncStatus} */ ('idle'))
   const [signedIn, setSignedIn] = useState(() => isSignedIn())
-  const skipSyncRef = useRef(false)
   const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
 
   stateRef.current = state
 
   useEffect(() => {
     saveData(state)
-  }, [state])
-
-  useEffect(() => {
-    if (skipSyncRef.current) {
-      skipSyncRef.current = false
-      return
-    }
-    if (!isSignedIn() || !fileIdRef.current) return
-    if (!navigator.onLine) {
-      setSyncStatus('error')
-      return
-    }
-    setSyncStatus('syncing')
-    saveToDrive(fileIdRef.current, state)
-      .then(() => {
-        setSyncStatus('idle')
-      })
-      .catch((e) => {
-        const err = e instanceof Error ? e.message : String(e)
-        if (err === 'Token expired') {
-          driveSignOut()
-          fileIdRef.current = null
-          clearFileId()
-          setSignedIn(false)
-          setSyncStatus('idle')
-        } else {
-          setSyncStatus('error')
-        }
-      })
   }, [state])
 
   useEffect(() => {
@@ -221,8 +191,8 @@ export function WorkoutProvider({ children }) {
         if (cancelled) return
 
         const merged = mergeData(stateRef.current, driveData)
-        skipSyncRef.current = true
         dispatch({ type: 'LOAD_DATA', payload: merged })
+        await syncNow()
       } catch {
         // Silent fail — user stays signed out, can re-auth manually
       }
@@ -245,8 +215,8 @@ export function WorkoutProvider({ children }) {
     saveFileId(fileId)
     const driveData = await loadFromDrive(fileId)
     const merged = mergeData(stateRef.current, driveData)
-    skipSyncRef.current = true
     dispatch({ type: 'LOAD_DATA', payload: merged })
+    await syncNow()
   }, [])
 
   const signOut = useCallback(() => {
@@ -264,7 +234,6 @@ export function WorkoutProvider({ children }) {
       try {
         const driveData = await loadFromDrive(fileIdRef.current)
         const merged = mergeData(stateRef.current, driveData)
-        skipSyncRef.current = true
         dispatch({ type: 'LOAD_DATA', payload: merged })
       } catch {
         // Drive may be unreachable — local reset still applied

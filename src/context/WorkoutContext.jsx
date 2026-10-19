@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useState } from 'react'
 import { EMPTY_WORKOUT_DATA } from '../types'
-import { loadData, saveData, clearSessionData, getFileId, saveFileId, clearFileId } from '../storage'
+import { loadData, saveData, getFileId, saveFileId, clearFileId } from '../storage'
 import {
   isSignedIn,
   signIn as driveSignIn,
@@ -16,7 +16,7 @@ import SyncConflictModal from '../components/SyncConflictModal'
 const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutContextValue | null>} */ (null))
 
 /**
- * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'RENAME_EXERCISE' | 'LOG_SESSION' | 'UPDATE_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA' | 'RESET_DATA'} WorkoutActionType
+ * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'RENAME_EXERCISE' | 'LOG_SESSION' | 'UPDATE_SESSION' | 'SAVE_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA' | 'RESET_DATA'} WorkoutActionType
  */
 
 /**
@@ -51,18 +51,58 @@ export function mergeData(local, remote) {
   const exerciseMap = new Map()
   for (const e of local.exercises) exerciseMap.set(e.id, e)
   for (const e of remote.exercises) {
-    if (!exerciseMap.has(e.id)) exerciseMap.set(e.id, e)
+    const localExercise = exerciseMap.get(e.id)
+    if (!localExercise) {
+      exerciseMap.set(e.id, e)
+    } else if (
+      localExercise.targetIncrement === undefined &&
+      e.targetIncrement !== undefined
+    ) {
+      exerciseMap.set(e.id, { ...localExercise, targetIncrement: e.targetIncrement })
+    }
   }
   const exercises = [...exerciseMap.values()]
 
   const schedule = { ...remote.schedule, ...local.schedule }
 
-  const sessionMap = new Map()
-  for (const s of remote.sessions) sessionMap.set(s.id, s)
-  for (const s of local.sessions) sessionMap.set(s.id, s)
-  const sessions = [...sessionMap.values()]
+  const sessions = mergeSessions(remote.sessions, local.sessions)
 
   return { exercises, schedule, sessions }
+}
+
+/**
+ * Merge sessions for the same date into one session, preferring local session
+ * metadata and set values when both sources contain the same exercise and reps.
+ * @param {...import('../types').WorkoutSession[][]} sessionLists
+ * @returns {import('../types').WorkoutSession[]}
+ */
+function mergeSessions(...sessionLists) {
+  const sessionsByDate = new Map()
+  for (const sessions of sessionLists) {
+    for (const session of sessions) {
+      const existing = sessionsByDate.get(session.date)
+      if (!existing) {
+        sessionsByDate.set(session.date, {
+          ...session,
+          sets: [...session.sets],
+        })
+        continue
+      }
+
+      const setsByExerciseAndReps = new Map(
+        existing.sets.map((set) => [`${set.exerciseId}:${set.reps}`, set]),
+      )
+      for (const set of session.sets) {
+        setsByExerciseAndReps.set(`${set.exerciseId}:${set.reps}`, set)
+      }
+      sessionsByDate.set(session.date, {
+        ...existing,
+        ...session,
+        sets: [...setsByExerciseAndReps.values()],
+      })
+    }
+  }
+  return [...sessionsByDate.values()]
 }
 
 /**
@@ -82,10 +122,10 @@ export function mergeData(local, remote) {
  */
 export function detectConflicts(local, remote) {
   const conflicts = []
-  for (const remoteSession of remote.sessions) {
-    const localSession = local.sessions.find(
-      (s) => s.date === remoteSession.date && s.day === remoteSession.day,
-    )
+  const localSessions = mergeSessions(local.sessions)
+  const remoteSessions = mergeSessions(remote.sessions)
+  for (const remoteSession of remoteSessions) {
+    const localSession = localSessions.find((s) => s.date === remoteSession.date)
     if (!localSession) continue
     for (const remoteSet of remoteSession.sets) {
       const localSet = localSession.sets.find(
@@ -137,6 +177,16 @@ function workoutReducer(state, action) {
       }
     }
 
+    case 'SET_EXERCISE_TARGET_INCREMENT': {
+      const { id, targetIncrement } = action.payload
+      return {
+        ...state,
+        exercises: state.exercises.map((e) =>
+          e.id === id ? { ...e, targetIncrement } : e,
+        ),
+      }
+    }
+
     case 'LOG_SESSION':
       return {
         ...state,
@@ -150,6 +200,15 @@ function workoutReducer(state, action) {
           s.id === action.payload.id ? action.payload : s,
         ),
       }
+
+    case 'SAVE_SESSION': {
+      const { id, date, day, sets } = action.payload
+      const others = state.sessions.filter((s) => s.id !== id && !(s.date === date && s.day === day))
+      if (sets.length === 0) return { ...state, sessions: others }
+      const existing = state.sessions.find((s) => s.id === id || (s.date === date && s.day === day))
+      const session = { ...existing, id: existing?.id ?? id, date, day, sets }
+      return { ...state, sessions: [...others, session].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)) }
+    }
 
     case 'SET_SCHEDULE':
       return {
@@ -197,16 +256,6 @@ export function WorkoutProvider({ children }) {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [])
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (isSignedIn() && fileIdRef.current) {
-        clearSessionData()
-      }
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [])
 
   useEffect(() => {
@@ -269,7 +318,6 @@ export function WorkoutProvider({ children }) {
     driveSignOut()
     fileIdRef.current = null
     clearFileId()
-    clearSessionData()
     setSignedIn(false)
     setSyncStatus('idle')
   }, [])

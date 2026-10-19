@@ -99,6 +99,30 @@ describe('mergeData', () => {
     expect(result.exercises).toEqual([{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squats' }, { id: 3, name: 'Deadlift' }])
   })
 
+  it('keeps a remote target increment when the local exercise has no target setting', () => {
+    const local = { exercises: [{ id: 1, name: 'Bench Press' }], schedule: {}, sessions: [] }
+    const remote = {
+      exercises: [{ id: 1, name: 'Bench Press', targetIncrement: 1 }],
+      schedule: {},
+      sessions: [],
+    }
+    expect(mergeData(local, remote).exercises[0].targetIncrement).toBe(1)
+  })
+
+  it('prefers the local target increment when both copies have a setting', () => {
+    const local = {
+      exercises: [{ id: 1, name: 'Bench Press', targetIncrement: 2 }],
+      schedule: {},
+      sessions: [],
+    }
+    const remote = {
+      exercises: [{ id: 1, name: 'Bench Press', targetIncrement: 1 }],
+      schedule: {},
+      sessions: [],
+    }
+    expect(mergeData(local, remote).exercises[0].targetIncrement).toBe(2)
+  })
+
   it('local schedule overrides remote for shared keys', () => {
     const local = {
       exercises: [],
@@ -118,23 +142,48 @@ describe('mergeData', () => {
     })
   })
 
-  it('merges sessions by id, local wins for conflicts', () => {
+  it('merges same-date sessions and keeps local values for matching sets', () => {
     const local = {
       exercises: [],
       schedule: {},
-      sessions: [{ id: '1', date: '2026-09-14', day: 'Monday', sets: [] }],
+      sessions: [{
+        id: 'local-1',
+        date: '2026-09-14',
+        day: 'Monday',
+        sets: [
+          { exerciseId: 1, reps: 15, weight: 60 },
+          { exerciseId: 2, reps: 15, weight: 40 },
+        ],
+      }],
     }
     const remote = {
       exercises: [],
       schedule: {},
       sessions: [
-        { id: '1', date: '2026-09-14', day: 'Monday', sets: [{ exerciseId: 1, reps: 15, weight: 50 }] },
+        {
+          id: 'drive-1',
+          date: '2026-09-14',
+          day: 'Monday',
+          sets: [
+            { exerciseId: 1, reps: 15, weight: 50 },
+            { exerciseId: 3, reps: 15, weight: 30 },
+          ],
+        },
         { id: '2', date: '2026-09-15', day: 'Friday', sets: [] },
       ],
     }
     const result = mergeData(local, remote)
     expect(result.sessions).toHaveLength(2)
-    expect(result.sessions.find((s) => s.id === '1')).toEqual(local.sessions[0])
+    expect(result.sessions.find((s) => s.date === '2026-09-14')).toEqual({
+      id: 'local-1',
+      date: '2026-09-14',
+      day: 'Monday',
+      sets: [
+        { exerciseId: 1, reps: 15, weight: 60 },
+        { exerciseId: 3, reps: 15, weight: 30 },
+        { exerciseId: 2, reps: 15, weight: 40 },
+      ],
+    })
     expect(result.sessions.find((s) => s.id === '2')).toEqual(remote.sessions[1])
   })
 })
@@ -345,6 +394,70 @@ describe('signOut', () => {
 })
 
 describe('syncNow', () => {
+  it('merges same-date sessions with different IDs and saves one session locally and to Drive', async () => {
+    const date = '2026-09-14'
+    const localSession = {
+      id: 'local-session',
+      date,
+      day: 'Monday',
+      sets: [{ exerciseId: 1, reps: 15, weight: 60 }],
+    }
+    localStorage.setItem(
+      'workout-data',
+      JSON.stringify({ ...EMPTY_WORKOUT_DATA, sessions: [localSession] }),
+    )
+    mockSignedIn = true
+    mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
+    mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
+
+    renderWithProvider()
+
+    await act(async () => {
+      screen.getByText('Sign In').click()
+      await flush()
+    })
+
+    mockSaveToDrive.mockClear()
+    mockLoadFromDrive.mockResolvedValue({
+      ...EMPTY_WORKOUT_DATA,
+      sessions: [
+        {
+          id: 'drive-session-a',
+          date,
+          day: 'Monday',
+          sets: [{ exerciseId: 2, reps: 15, weight: 45 }],
+        },
+        {
+          id: 'drive-session-b',
+          date,
+          day: 'Monday',
+          sets: [{ exerciseId: 3, reps: 15, weight: 30 }],
+        },
+      ],
+    })
+
+    await act(async () => {
+      screen.getByText('Sync Now').click()
+      await flush()
+    })
+
+    const expectedSession = {
+      id: 'local-session',
+      date,
+      day: 'Monday',
+      sets: [
+        { exerciseId: 2, reps: 15, weight: 45 },
+        { exerciseId: 3, reps: 15, weight: 30 },
+        { exerciseId: 1, reps: 15, weight: 60 },
+      ],
+    }
+    expect(mockSaveToDrive).toHaveBeenCalledWith(
+      'file1',
+      expect.objectContaining({ sessions: [expectedSession] }),
+    )
+    expect(JSON.parse(localStorage.getItem('workout-data')).sessions).toEqual([expectedSession])
+  })
+
   it('pushes current state to Drive when called manually', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })

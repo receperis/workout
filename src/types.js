@@ -3,11 +3,13 @@
  * @property {number} id - Unique integer ID
  * @property {string} name - Display name (can be renamed)
  * @property {string} [image] - Optional image path
+ * @property {number} [targetIncrement] - Weight to add to the previous session's weight, in kilograms
  */
 
 /**
  * @typedef {Object} WorkoutSet
  * @property {number} exerciseId - Exercise ID
+ * @property {string} [exerciseName] - Exercise name captured for newly recorded sets
  * @property {number} reps - Number of reps (15, 13, 11, 9, 7, or custom)
  * @property {number} weight - Weight in kilograms
  */
@@ -52,6 +54,25 @@ export const DAYS_OF_WEEK = /** @type {const} */ ([
   'Cumartesi',
   'Pazar',
 ])
+
+const ENGLISH_TO_TURKISH_DAY = {
+  Monday: 'Pazartesi',
+  Tuesday: 'Salı',
+  Wednesday: 'Çarşamba',
+  Thursday: 'Perşembe',
+  Friday: 'Cuma',
+  Saturday: 'Cumartesi',
+  Sunday: 'Pazar',
+}
+
+/**
+ * @param {string} day
+ * @returns {string | null}
+ */
+export function normalizeSessionDay(day) {
+  if (DAYS_OF_WEEK.includes(/** @type {DayOfWeek} */ (day))) return day
+  return ENGLISH_TO_TURKISH_DAY[day] ?? null
+}
 
 export const EMPTY_WORKOUT_DATA = /** @type {const} */ ({
   exercises: [
@@ -110,7 +131,11 @@ export function isExercise(value) {
   return (
     typeof obj.id === 'number' &&
     typeof obj.name === 'string' &&
-    (obj.image === undefined || typeof obj.image === 'string')
+    (obj.image === undefined || typeof obj.image === 'string') &&
+    (obj.targetIncrement === undefined ||
+      (typeof obj.targetIncrement === 'number' &&
+        Number.isFinite(obj.targetIncrement) &&
+        obj.targetIncrement >= 0))
   )
 }
 
@@ -141,7 +166,7 @@ export function isWorkoutSession(value) {
     typeof obj.id === 'string' &&
     typeof obj.date === 'string' &&
     typeof obj.day === 'string' &&
-    DAYS_OF_WEEK.includes(/** @type {DayOfWeek} */ (obj.day)) &&
+    normalizeSessionDay(obj.day) !== null &&
     Array.isArray(obj.sets) &&
     obj.sets.every(isWorkoutSet)
   )

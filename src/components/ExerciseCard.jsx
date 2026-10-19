@@ -17,7 +17,42 @@ function formatShortDate(dateStr) {
   return `${month} ${day}`
 }
 
-function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initialSets, previousWeights, previousDate, savedLabel, readOnly }) {
+function PreviousWeight({ weight, date, targetIncrement }) {
+  const targetWeight = weight + targetIncrement
+
+  return (
+    <div
+      className="shrink-0 rounded-md flex flex-col items-center justify-center"
+      style={{
+        width: targetIncrement > 0 ? '82px' : '56px',
+        minHeight: '44px',
+        padding: '3px 4px',
+        border: '1px solid var(--border)',
+      }}
+      aria-label={`Önceki seans ${weight} kg${targetIncrement > 0 ? `, hedef ${targetWeight} kg` : ''}`}
+    >
+      <span
+        className="text-sm font-semibold tabular-nums leading-tight"
+        style={{ color: 'var(--text-heading)' }}
+      >
+        {weight} kg
+      </span>
+      <span className="leading-tight" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+        {formatShortDate(date)}
+      </span>
+      {targetIncrement > 0 && (
+        <span
+          className="leading-tight font-medium tabular-nums"
+          style={{ fontSize: '10px', color: 'var(--accent)' }}
+        >
+          Hedef {targetWeight} kg
+        </span>
+      )}
+    </div>
+  )
+}
+
+function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initialSets, previousWeights, previousCustomSets = [], previousDate, targetIncrement = 0, onTargetIncrementChange, savedLabel, readOnly }) {
   const hasData = initialSets?.some((s) => s.weight > 0)
   const [collapsed, setCollapsed] = useState(readOnly ? !hasData : true)
   const [weights, setWeights] = useState(() =>
@@ -91,6 +126,14 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
     setCustomSets((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const handleTargetIncrementChange = (event) => {
+    const value = event.target.value
+    const increment = value === '' ? 0 : Number(value)
+    if (Number.isFinite(increment)) {
+      onTargetIncrementChange?.(Math.max(0, increment))
+    }
+  }
+
   const weightSummary = weights
     .map((w) => (w === '' ? '—' : String(w)))
     .join(' / ')
@@ -150,6 +193,44 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
 
       {!collapsed && (
         <div className="px-5 pb-3 space-y-2">
+          <div
+            className="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+            style={{ background: 'var(--surface-raised)' }}
+          >
+            <div>
+              <label
+                htmlFor={`target-increment-${exerciseId}`}
+                className="text-sm font-medium"
+                style={{ color: 'var(--text-heading)' }}
+              >
+                Hedef artış
+              </label>
+              <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                Önceki seans ağırlığına eklenir
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                id={`target-increment-${exerciseId}`}
+                type="number"
+                min="0"
+                step="0.5"
+                disabled={readOnly}
+                className="w-20 rounded-lg px-2.5 py-2 text-sm tabular-nums outline-none"
+                style={{
+                  background: readOnly ? 'var(--surface-raised)' : 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: readOnly ? 'var(--text-muted)' : 'var(--text-heading)',
+                  opacity: readOnly ? 0.7 : 1,
+                }}
+                aria-label={`${exerciseName} hedef artışı`}
+                value={targetIncrement > 0 ? targetIncrement : ''}
+                onChange={handleTargetIncrementChange}
+              />
+              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>kg</span>
+            </div>
+          </div>
+
           {PYRAMID_REPS.map((reps, i) => (
             <div
               key={reps}
@@ -180,27 +261,11 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
               />
               <span className="text-sm shrink-0" style={{ color: 'var(--text-muted)' }}>kg</span>
               {previousWeights && previousWeights[i] > 0 && (
-                <div
-                  className="shrink-0 rounded-md flex flex-col items-center justify-center"
-                  style={{
-                    width: '52px',
-                    height: '44px',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  <span
-                    className="text-sm font-semibold tabular-nums leading-tight"
-                    style={{ color: 'var(--text-heading)' }}
-                  >
-                    {previousWeights[i]}
-                  </span>
-                  <span
-                    className="leading-tight"
-                    style={{ fontSize: '10px', color: 'var(--text-muted)' }}
-                  >
-                    {formatShortDate(previousDate)}
-                  </span>
-                </div>
+                <PreviousWeight
+                  weight={previousWeights[i]}
+                  date={previousDate}
+                  targetIncrement={targetIncrement}
+                />
               )}
             </div>
           ))}
@@ -247,27 +312,11 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
                 />
                 <span className="text-sm shrink-0" style={{ color: 'var(--text-muted)' }}>kg</span>
                 {prevWeight > 0 && (
-                  <div
-                    className="shrink-0 rounded-md flex flex-col items-center justify-center"
-                    style={{
-                      width: '52px',
-                      height: '44px',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    <span
-                      className="text-sm font-semibold tabular-nums leading-tight"
-                      style={{ color: 'var(--text-heading)' }}
-                    >
-                      {prevWeight}
-                    </span>
-                    <span
-                      className="leading-tight"
-                      style={{ fontSize: '10px', color: 'var(--text-muted)' }}
-                    >
-                      {formatShortDate(previousDate)}
-                    </span>
-                  </div>
+                  <PreviousWeight
+                    weight={prevWeight}
+                    date={previousDate}
+                    targetIncrement={targetIncrement}
+                  />
                 )}
                 {!readOnly && (
                   <button
@@ -290,6 +339,28 @@ function ExerciseCard({ exerciseId, exerciseName, exerciseImage, onChange, initi
               </div>
             )
           })}
+
+          {previousCustomSets.length > 0 && (
+            <div className="space-y-2">
+              {previousCustomSets.map((set, i) => (
+                <div
+                  key={`${set.reps}-${i}`}
+                  className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5"
+                  style={{ background: 'var(--surface-raised)' }}
+                  aria-label={`Önceki özel set ${set.reps} tekrar`}
+                >
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+                    Önceki özel set · {set.reps} tekrar
+                  </span>
+                  <PreviousWeight
+                    weight={set.weight}
+                    date={previousDate}
+                    targetIncrement={targetIncrement}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
 
           {!readOnly && (
             <button

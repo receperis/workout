@@ -1,10 +1,10 @@
 import { useParams } from 'react-router-dom'
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { DAYS_OF_WEEK, PYRAMID_REPS, exerciseNameById } from '../types'
+import { DAYS_OF_WEEK, PYRAMID_REPS } from '../types'
 import { useWorkout } from '../context/WorkoutContext'
-import { saveDraft, loadDraft, clearDraft } from '../storage'
-import { useDebounce } from '../hooks/useDebounce'
 import ExerciseCard from '../components/ExerciseCard'
+
+const IDLE_SYNC_MS = 10 * 60 * 1000
 
 function today() {
   return new Date().toISOString().split('T')[0]
@@ -58,7 +58,6 @@ function LogWorkout() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getMonday(selectedDate))
   const [saved, setSaved] = useState(false)
   const [editing, setEditing] = useState(false)
-  const weekScrollRef = useRef(null)
   const todayButtonRef = useRef(null)
 
   const selectedDay = dateToDayName(selectedDate)
@@ -74,6 +73,16 @@ function LogWorkout() {
     () => state.sessions.find((s) => s.date === selectedDate && s.day === selectedDay),
     [state.sessions, selectedDate, selectedDay],
   )
+  const exerciseIdsForDisplay = useMemo(
+    () => [...new Set([
+      ...exercisesForDay,
+      ...(existingSession?.sets.map((set) => set.exerciseId) || []),
+    ])],
+    [exercisesForDay, existingSession],
+  )
+  const sessionOnlyExerciseIds = exerciseIdsForDisplay.filter(
+    (exerciseId) => !exercisesForDay.includes(exerciseId),
+  )
 
   const previousWeightsByExercise = useMemo(() => {
     const result = {}
@@ -81,13 +90,20 @@ function LogWorkout() {
       const pastSessions = state.sessions
         .filter((s) => s.date < selectedDate && s.sets.some((set) => set.exerciseId === exerciseId))
       if (pastSessions.length > 0) {
-        const lastSession = pastSessions[pastSessions.length - 1]
+        const lastSession = pastSessions.reduce((latest, session) =>
+          session.date > latest.date ? session : latest,
+        )
         const lastSets = lastSession.sets.filter((s) => s.exerciseId === exerciseId)
+        const daysSinceLastSession =
+          (Date.parse(selectedDate) - Date.parse(lastSession.date)) / 86400000
         result[exerciseId] = {
           weights: PYRAMID_REPS.map((reps) => {
             const found = lastSets.find((s) => s.reps === reps)
             return found?.weight || 0
           }),
+          customSets: daysSinceLastSession <= 7
+            ? lastSets.filter((set) => !PYRAMID_REPS.includes(set.reps) && set.weight > 0)
+            : [],
           date: lastSession.date,
         }
       }
@@ -104,8 +120,6 @@ function LogWorkout() {
       }
       return sets
     }
-    const draft = loadDraft()
-    if (draft && draft.date === selectedDate) return draft.exerciseSets
     return {}
   })
 
@@ -120,105 +134,107 @@ function LogWorkout() {
       }
       setExerciseSets(sets)
     } else {
-      const draft = loadDraft()
-      if (draft && draft.date === selectedDate) {
-        setExerciseSets(draft.exerciseSets)
-      } else {
-        setExerciseSets({})
-      }
+      setExerciseSets({})
     }
     setSaved(false)
     setEditing(false)
   }
 
-  const handleExerciseChange = (exerciseId, sets) => {
-    setExerciseSets((prev) => ({ ...prev, [exerciseId]: sets }))
-    setSaved(false)
+  const syncTimerRef = useRef(null)
+  const locallyCreatedIdRef = useRef(null)
+  const dirtyRef = useRef(false)
+  const lastExerciseIdRef = useRef(null)
+  const syncNowRef = useRef(syncNow)
+  syncNowRef.current = syncNow
+
+  const flushSync = () => {
+    clearTimeout(syncTimerRef.current)
+    if (!dirtyRef.current) return
+    dirtyRef.current = false
+    syncNowRef.current()
   }
 
-  const debouncedExerciseSets = useDebounce(exerciseSets, 100)
-
   useEffect(() => {
-    if (!isPast && !existingSession) {
-      const hasData = Object.values(debouncedExerciseSets).some((sets) =>
-        sets.some((s) => s.weight > 0),
-      )
-      if (hasData) saveDraft(selectedDate, debouncedExerciseSets)
+    const handleHidden = () => {
+      if (document.visibilityState === 'hidden') flushSync()
     }
-  }, [debouncedExerciseSets, selectedDate, isPast, existingSession])
-
-  const draftRef = useRef({ exerciseSets, selectedDate, isPast, existingSession })
-  draftRef.current = { exerciseSets, selectedDate, isPast, existingSession }
-
-  useEffect(() => {
+    document.addEventListener('visibilitychange', handleHidden)
+    window.addEventListener('pagehide', flushSync)
     return () => {
-      const { exerciseSets: sets, selectedDate: date, isPast: past, existingSession: session } = draftRef.current
-      if (!past && !session) {
-        const hasData = Object.values(sets).some((s) =>
-          s.some((item) => item.weight > 0),
-        )
-        if (hasData) saveDraft(date, sets)
-      }
+      document.removeEventListener('visibilitychange', handleHidden)
+      window.removeEventListener('pagehide', flushSync)
+      flushSync()
     }
   }, [])
 
-  const grandTotal = exercisesForDay.reduce((sum, exerciseId) => {
+  const buildSessionSets = (allSets) =>
+    exerciseIdsForDisplay.flatMap((exerciseId) => {
+      const exercise = state.exercises.find((item) => item.id === exerciseId)
+      return (allSets[exerciseId] || [])
+        .filter((s) => s.weight > 0)
+        .map((set) => {
+          const existingSet = existingSession?.sets.find(
+            (oldSet) => oldSet.exerciseId === set.exerciseId && oldSet.reps === set.reps,
+          )
+          if (existingSet?.weight === set.weight) return existingSet
+          return {
+            ...set,
+            exerciseName: exercise?.name || existingSet?.exerciseName || String(exerciseId),
+          }
+        })
+    })
+
+  const exerciseSetsRef = useRef(exerciseSets)
+  exerciseSetsRef.current = exerciseSets
+
+  const handleExerciseChange = (exerciseId, sets) => {
+    const previous = exerciseSetsRef.current[exerciseId]
+    const unchanged = previous
+      ? JSON.stringify(previous) === JSON.stringify(sets)
+      : sets.every((set) => !(set.weight > 0))
+    if (unchanged) return
+
+    if (lastExerciseIdRef.current !== null && lastExerciseIdRef.current !== exerciseId) {
+      flushSync()
+    }
+    lastExerciseIdRef.current = exerciseId
+
+    const next = { ...exerciseSetsRef.current, [exerciseId]: sets }
+    exerciseSetsRef.current = next
+    setExerciseSets(next)
+
+    const sessionSets = buildSessionSets(next)
+    const current = existingSession?.sets || []
+    if (JSON.stringify(sessionSets) === JSON.stringify(current)) return
+
+    const sessionId = existingSession?.id ?? crypto.randomUUID()
+    if (!existingSession) locallyCreatedIdRef.current = sessionId
+
+    dispatch({
+      type: 'SAVE_SESSION',
+      payload: {
+        id: sessionId,
+        date: selectedDate,
+        day: selectedDay,
+        sets: sessionSets,
+      },
+    })
+    setSaved(true)
+    dirtyRef.current = true
+    clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = setTimeout(flushSync, IDLE_SYNC_MS)
+  }
+
+  const grandTotal = exerciseIdsForDisplay.reduce((sum, exerciseId) => {
     const sets = exerciseSets[exerciseId] || []
     return sum + sets.reduce((s, set) => s + set.reps * set.weight, 0)
   }, 0)
-
-  const hasAnyWeights = Object.values(exerciseSets).some((sets) =>
-    sets.some((s) => s.weight > 0),
-  )
 
   useEffect(() => {
     if (todayButtonRef.current) {
       todayButtonRef.current.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
     }
   }, [])
-
-  const handleComplete = async () => {
-    const allSets = exercisesForDay.flatMap((exerciseId) => {
-      const sets = exerciseSets[exerciseId] || []
-      return sets.filter((s) => s.weight > 0)
-    })
-
-    if (allSets.length === 0) return
-
-    dispatch({
-      type: 'LOG_SESSION',
-      payload: {
-        id: crypto.randomUUID(),
-        date: selectedDate,
-        day: selectedDay,
-        sets: allSets,
-      },
-    })
-
-    clearDraft()
-    setSaved(true)
-    await syncNow()
-  }
-
-  const handleUpdate = async () => {
-    const allSets = exercisesForDay.flatMap((exerciseId) => {
-      const sets = exerciseSets[exerciseId] || []
-      return sets.filter((s) => s.weight > 0)
-    })
-
-    if (allSets.length === 0) return
-
-    dispatch({
-      type: 'UPDATE_SESSION',
-      payload: {
-        ...existingSession,
-        sets: allSets,
-      },
-    })
-
-    setEditing(false)
-    await syncNow()
-  }
 
   const navigateWeek = (direction) => {
     setCurrentWeekStart((prev) => addDays(prev, direction * 7))
@@ -282,7 +298,7 @@ function LogWorkout() {
         {formatMonthLabel(currentWeekStart)}
       </div>
 
-      {exercisesForDay.length === 0 ? (
+      {exerciseIdsForDisplay.length === 0 ? (
         <div
           className="rounded-xl p-6 text-center"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
@@ -309,7 +325,7 @@ function LogWorkout() {
                   background: editing ? 'var(--accent)' : 'var(--surface)',
                   border: `1px solid var(--accent)`,
                 }}
-                aria-label={editing ? 'Düzenlemeyi iptal et' : 'Seansı düzenle'}
+                aria-label={editing ? 'Düzenlemeyi kapat' : 'Seansı düzenle'}
               >
                 {editing ? (
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -337,42 +353,43 @@ function LogWorkout() {
           )}
 
           <div className="space-y-4">
-            {exercisesForDay.map((exerciseId, i) => {
+            {exerciseIdsForDisplay.map((exerciseId, i) => {
               const exercise = state.exercises.find((e) => e.id === exerciseId)
+              const sessionOnlyIndex = sessionOnlyExerciseIds.indexOf(exerciseId)
               return (
-                <ExerciseCard
-                  key={`${selectedDate}-${exerciseId}-${existingSession ? 'loaded' : 'empty'}`}
-                  exerciseId={exerciseId}
-                  exerciseName={exercise?.name || String(exerciseId)}
-                  exerciseImage={exercise?.image}
-                  initialSets={exerciseSets[exerciseId]}
-                  previousWeights={previousWeightsByExercise[exerciseId]?.weights}
-                  previousDate={previousWeightsByExercise[exerciseId]?.date}
-                  onChange={(sets) => handleExerciseChange(exerciseId, sets)}
-                  readOnly={isPast && !editing}
-                  savedLabel={
-                    i === exercisesForDay.length - 1 && saved
-                      ? 'Seans kaydedildi!'
-                      : undefined
-                  }
-                />
+                <div key={`${selectedDate}-${exerciseId}-${existingSession && existingSession.id !== locallyCreatedIdRef.current ? 'loaded' : 'empty'}`}>
+                  {sessionOnlyIndex === 0 && (
+                    <div className="pt-2 text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
+                      Ek egzersizler
+                    </div>
+                  )}
+                  <ExerciseCard
+                    exerciseId={exerciseId}
+                    exerciseName={exercise?.name || existingSession?.sets.find((set) => set.exerciseId === exerciseId)?.exerciseName || String(exerciseId)}
+                    exerciseImage={exercise?.image}
+                    initialSets={exerciseSets[exerciseId]}
+                    previousWeights={previousWeightsByExercise[exerciseId]?.weights}
+                    previousCustomSets={previousWeightsByExercise[exerciseId]?.customSets}
+                    previousDate={previousWeightsByExercise[exerciseId]?.date}
+                    targetIncrement={exercise?.targetIncrement || 0}
+                    onTargetIncrementChange={(targetIncrement) =>
+                      dispatch({
+                        type: 'SET_EXERCISE_TARGET_INCREMENT',
+                        payload: { id: exerciseId, targetIncrement },
+                      })
+                    }
+                    onChange={(sets) => handleExerciseChange(exerciseId, sets)}
+                    readOnly={isPast && !editing}
+                    savedLabel={
+                      i === exerciseIdsForDisplay.length - 1 && saved
+                        ? 'Seans kaydedildi!'
+                        : undefined
+                    }
+                  />
+                </div>
               )
             })}
           </div>
-
-          {hasAnyWeights && (!isPast || editing) && (
-            <button
-              onClick={editing && existingSession ? handleUpdate : handleComplete}
-              className="w-full rounded-xl py-4 text-base font-semibold transition-colors"
-              style={{
-                background: 'var(--accent)',
-                color: '#fff',
-                boxShadow: '0 2px 8px rgba(232, 93, 42, 0.3)',
-              }}
-            >
-              {editing && existingSession ? 'Seansı Güncelle' : 'Seansı Tamamla'}
-            </button>
-          )}
         </>
       )}
     </div>

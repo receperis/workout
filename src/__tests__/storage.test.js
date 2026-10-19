@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest'
-import { loadData, saveData, clearSessionData, getFileId, saveFileId, clearFileId, saveDraft, loadDraft, clearDraft } from '../storage'
+import { loadData, saveData, getFileId, saveFileId, clearFileId } from '../storage'
 import { EMPTY_WORKOUT_DATA } from '../types'
 
 beforeEach(() => {
@@ -112,27 +112,6 @@ describe('roundtrip', () => {
   })
 })
 
-describe('clearSessionData', () => {
-  it('removes workout data from localStorage', () => {
-    const data = {
-      exercises: [{ id: 1, name: 'Bench Press' }],
-      schedule: { Monday: [1] },
-      sessions: [],
-    }
-    saveData(data)
-    expect(loadData()).toEqual(data)
-    clearSessionData()
-    expect(loadData()).toEqual(EMPTY_WORKOUT_DATA)
-  })
-
-  it('preserves Drive file ID', () => {
-    saveFileId('test-file-id-123')
-    saveData({ exercises: [], schedule: {}, sessions: [] })
-    clearSessionData()
-    expect(getFileId()).toBe('test-file-id-123')
-  })
-})
-
 describe('getFileId / saveFileId / clearFileId', () => {
   it('returns null when no file ID stored', () => {
     expect(getFileId()).toBeNull()
@@ -147,67 +126,5 @@ describe('getFileId / saveFileId / clearFileId', () => {
     saveFileId('abc-def-123')
     clearFileId()
     expect(getFileId()).toBeNull()
-  })
-})
-
-describe('saveDraft / loadDraft / clearDraft', () => {
-  it('saves draft to localStorage', () => {
-    const exerciseSets = {
-      1: [
-        { exerciseId: 1, reps: 15, weight: 60 },
-        { exerciseId: 1, reps: 13, weight: 65 },
-      ],
-    }
-    saveDraft('2026-09-19', exerciseSets)
-    const stored = JSON.parse(localStorage.getItem('workout-draft'))
-    expect(stored).toEqual({ date: '2026-09-19', exerciseSets })
-  })
-
-  it('loads saved draft', () => {
-    const exerciseSets = {
-      1: [
-        { exerciseId: 1, reps: 15, weight: 60 },
-        { exerciseId: 1, reps: 13, weight: 65 },
-      ],
-    }
-    saveDraft('2026-09-19', exerciseSets)
-    const draft = loadDraft()
-    expect(draft).toEqual({ date: '2026-09-19', exerciseSets })
-  })
-
-  it('returns null when no draft stored', () => {
-    expect(loadDraft()).toBeNull()
-  })
-
-  it('returns null when stored draft JSON is invalid', () => {
-    localStorage.setItem('workout-draft', 'not-json')
-    expect(loadDraft()).toBeNull()
-  })
-
-  it('clears draft', () => {
-    saveDraft('2026-09-19', { 1: [{ exerciseId: 1, reps: 15, weight: 60 }] })
-    clearDraft()
-    expect(loadDraft()).toBeNull()
-  })
-
-  it('draft is independent of workout-data key', () => {
-    const workoutData = {
-      exercises: [{ id: 1, name: 'Bench Press' }],
-      schedule: {},
-      sessions: [],
-    }
-    saveData(workoutData)
-    saveDraft('2026-09-19', { 1: [{ exerciseId: 1, reps: 15, weight: 60 }] })
-
-    clearDraft()
-    expect(loadDraft()).toBeNull()
-    expect(loadData()).toEqual(workoutData)
-  })
-
-  it('overwrites existing draft', () => {
-    saveDraft('2026-09-19', { 1: [{ exerciseId: 1, reps: 15, weight: 60 }] })
-    saveDraft('2026-09-19', { 1: [{ exerciseId: 1, reps: 15, weight: 70 }] })
-    const draft = loadDraft()
-    expect(draft.exerciseSets[1][0].weight).toBe(70)
   })
 })

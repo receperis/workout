@@ -43,7 +43,7 @@ WorkoutData
 ## Screens
 
 1. **Dashboard** — Week overview, today's exercises, quick-start
-2. **Log Workout** — Select day, enter weights per pyramid set
+2. **Log Workout** — Select day, enter weights per pyramid set, and set an exercise-wide kg increase shown as a target above each previous-session weight
 3. **Progress** — Line chart per exercise showing weight over time
 4. **Settings** — Manage exercises, schedule, Google Drive connection
 

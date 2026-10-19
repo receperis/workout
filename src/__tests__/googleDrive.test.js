@@ -434,7 +434,12 @@ describe('loadFromDrive', () => {
     const validData = {
       exercises: [{ id: 1, name: 'Bench Press' }],
       schedule: { Monday: [1] },
-      sessions: [],
+      sessions: [{
+        id: 'session-1',
+        date: '2026-09-06',
+        day: 'Sunday',
+        sets: [{ exerciseId: 1, reps: 15, weight: 60 }],
+      }],
     }
     mockFetch((url) => {
       if (url.includes('alt=media')) {
@@ -447,7 +452,10 @@ describe('loadFromDrive', () => {
     })
 
     const result = await loadFromDrive('file-1')
-    expect(result).toEqual(validData)
+    expect(result).toEqual({
+      ...validData,
+      sessions: [{ ...validData.sessions[0], day: 'Pazar' }],
+    })
   })
 
   it('returns EMPTY_WORKOUT_DATA when JSON is invalid', async () => {
@@ -528,12 +536,17 @@ describe('saveToDrive', () => {
     await expect(saveToDrive('file-1', { exercises: [] })).rejects.toThrow('Not signed in')
   })
 
-  it('serializes and uploads JSON data', async () => {
+  it('uploads existing sets without backfilling exercise names', async () => {
     await signInWithToken()
     const data = {
-      exercises: ['Bench Press', 'Squat'],
-      schedule: { Monday: ['Bench Press'] },
-      sessions: [],
+      exercises: [{ id: 1, name: 'Bench Press' }, { id: 2, name: 'Squat' }],
+      schedule: { Monday: [1] },
+      sessions: [{
+        id: 'session-1',
+        date: '2026-10-01',
+        day: 'Monday',
+        sets: [{ exerciseId: 1, reps: 15, weight: 50 }],
+      }],
     }
     let capturedUrl, capturedOpts
     mockFetch((url, opts) => {
@@ -548,7 +561,10 @@ describe('saveToDrive', () => {
     expect(capturedOpts.method).toBe('PATCH')
     expect(capturedOpts.headers['Content-Type']).toBe('application/json')
     expect(capturedOpts.headers['Authorization']).toBe('Bearer test-token')
-    expect(capturedOpts.body).toBe(JSON.stringify(data))
+    expect(JSON.parse(capturedOpts.body).sessions[0].sets).toEqual([
+      { exerciseId: 1, reps: 15, weight: 50 },
+    ])
+    expect(data.sessions[0].sets[0]).not.toHaveProperty('exerciseName')
   })
 
   it('throws on Drive API errors', async () => {

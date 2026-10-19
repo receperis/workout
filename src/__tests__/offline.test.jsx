@@ -177,7 +177,7 @@ describe('sync succeeds when online', () => {
 })
 
 describe('signOut', () => {
-  it('clears signed-in state and session data on sign out', async () => {
+  it('clears signed-in state but keeps local data on sign out', async () => {
     mockSignedIn = true
     mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
     mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
@@ -195,7 +195,7 @@ describe('signOut', () => {
     })
 
     expect(screen.getByTestId('signedIn')).toHaveTextContent('false')
-    expect(localStorage.getItem('workout-data')).toBeNull()
+    expect(localStorage.getItem('workout-data')).not.toBeNull()
     expect(localStorage.getItem('google-drive-file-id')).toBeNull()
   })
 })

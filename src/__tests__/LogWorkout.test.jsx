@@ -140,6 +140,91 @@ describe('LogWorkout - Exercise Cards', () => {
     fireEvent.click(screen.getByText(formatDateLabel(monday)))
     expect(screen.queryByText('Seansı Tamamla')).not.toBeInTheDocument()
   })
+
+  it('saves an exercise target increment and displays goals next to previous weights', () => {
+    const todayDate = today()
+    const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const previousDate = addDays(todayDate, -7)
+    const previousDay = new Date(previousDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const sessions = [{
+      id: 'previous-session',
+      date: previousDate,
+      day: previousDay,
+      sets: [15, 13, 11, 9, 7].map((reps) => ({ exerciseId: 1, reps, weight: 5 })),
+    }]
+    renderLogWorkout('/log', { [todayDay]: [1] }, sessions)
+
+    fireEvent.click(screen.getByText('Bench Press'))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Bench Press hedef artışı' }), {
+      target: { value: '1' },
+    })
+
+    expect(screen.getAllByText('5 kg')).toHaveLength(5)
+    expect(screen.getAllByText('Hedef 6 kg')).toHaveLength(5)
+    expect(JSON.parse(localStorage.getItem('workout-data')).exercises[0].targetIncrement).toBe(1)
+  })
+
+  it('uses the most recent previous session even when sessions are unsorted', () => {
+    const selectedDate = today()
+    const selectedDay = new Date(selectedDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const recentDate = addDays(selectedDate, -7)
+    const olderDate = addDays(selectedDate, -14)
+    const sessions = [
+      {
+        id: 'recent-session',
+        date: recentDate,
+        day: new Date(recentDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' }),
+        sets: [15, 13, 11, 9, 7].map((reps) => ({ exerciseId: 1, reps, weight: 10 })),
+      },
+      {
+        id: 'older-session',
+        date: olderDate,
+        day: new Date(olderDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' }),
+        sets: [15, 13, 11, 9, 7].map((reps) => ({ exerciseId: 1, reps, weight: 5 })),
+      },
+    ]
+    renderLogWorkout('/log', { [selectedDay]: [1] }, sessions)
+
+    fireEvent.click(screen.getByText('Bench Press'))
+
+    expect(screen.getAllByText('10 kg')).toHaveLength(5)
+    expect(screen.queryByText('5 kg')).not.toBeInTheDocument()
+  })
+
+  it('shows previous custom sets for the same exercise for up to seven days', () => {
+    const selectedDate = today()
+    const selectedDay = new Date(selectedDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const previousDate = addDays(selectedDate, -7)
+    const previousDay = new Date(previousDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const sessions = [{
+      id: 'previous-session',
+      date: previousDate,
+      day: previousDay,
+      sets: [{ exerciseId: 1, reps: 10, weight: 25 }],
+    }]
+    renderLogWorkout('/log', { [selectedDay]: [1] }, sessions)
+
+    fireEvent.click(screen.getByText('Bench Press'))
+    expect(screen.getByText('Önceki özel set · 10 tekrar')).toBeInTheDocument()
+    expect(screen.getByText('25 kg')).toBeInTheDocument()
+  })
+
+  it('hides previous custom sets when the previous session was more than seven days ago', () => {
+    const selectedDate = today()
+    const selectedDay = new Date(selectedDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const previousDate = addDays(selectedDate, -8)
+    const previousDay = new Date(previousDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const sessions = [{
+      id: 'previous-session',
+      date: previousDate,
+      day: previousDay,
+      sets: [{ exerciseId: 1, reps: 10, weight: 25 }],
+    }]
+    renderLogWorkout('/log', { [selectedDay]: [1] }, sessions)
+
+    fireEvent.click(screen.getByText('Bench Press'))
+    expect(screen.queryByText('Önceki özel set · 10 tekrar')).not.toBeInTheDocument()
+  })
 })
 
 describe('LogWorkout - Pre-populate from existing session', () => {
@@ -206,7 +291,8 @@ describe('LogWorkout - Pre-populate from existing session', () => {
     }]
     renderLogWorkout('/log', { [todayDay]: [1] }, sessions)
 
-    fireEvent.click(screen.getByText('Seansı Güncelle'))
+    fireEvent.click(screen.getByText('Bench Press'))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' }), { target: { value: '70' } })
     await new Promise((r) => setTimeout(r, 100))
 
     const data = JSON.parse(localStorage.getItem('workout-data'))
@@ -329,7 +415,7 @@ describe('LogWorkout - Edit past session', () => {
     expect(input).not.toBeDisabled()
   })
 
-  it('shows "Seansı Güncelle" button when editing', () => {
+  it('does not show a save button when editing', () => {
     const yesterday = addDays(today(), -1)
     const yesterdayDay = new Date(yesterday + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
     const sessions = [{
@@ -342,7 +428,7 @@ describe('LogWorkout - Edit past session', () => {
     fireEvent.click(screen.getByText(formatDateLabel(yesterday)))
 
     fireEvent.click(screen.getByLabelText('Seansı düzenle'))
-    expect(screen.getByText('Seansı Güncelle')).toBeInTheDocument()
+    expect(screen.queryByText('Seansı Güncelle')).not.toBeInTheDocument()
   })
 
   it('saves updated session without creating a duplicate', async () => {
@@ -361,22 +447,26 @@ describe('LogWorkout - Edit past session', () => {
     const input = screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })
     fireEvent.change(input, { target: { value: '70' } })
 
-    fireEvent.click(screen.getByText('Seansı Güncelle'))
     await new Promise((r) => setTimeout(r, 100))
 
     const data = JSON.parse(localStorage.getItem('workout-data'))
     expect(data.sessions).toHaveLength(1)
     expect(data.sessions[0].sets[0].weight).toBe(70)
+    expect(data.sessions[0].sets[0].exerciseName).toBe('Bench Press')
   })
 
-  it('reverts to read-only when edit is cancelled', () => {
+  it('saves edited values and returns to read-only when edit mode is closed', async () => {
     const yesterday = addDays(today(), -1)
     const yesterdayDay = new Date(yesterday + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
     const sessions = [{
       id: 'session-1',
       date: yesterday,
       day: yesterdayDay,
-      sets: [{ exerciseId: 1, reps: 15, weight: 60 }],
+      sets: [
+        { exerciseId: 1, reps: 15, weight: 60 },
+        { exerciseId: 1, reps: 13, weight: 65 },
+        { exerciseId: 2, reps: 15, weight: 45 },
+      ],
     }]
     renderLogWorkout('/log', { [yesterdayDay]: [1] }, sessions)
     fireEvent.click(screen.getByText(formatDateLabel(yesterday)))
@@ -384,9 +474,52 @@ describe('LogWorkout - Edit past session', () => {
     fireEvent.click(screen.getByLabelText('Seansı düzenle'))
     const input = screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })
     expect(input).not.toBeDisabled()
+    expect(screen.getByRole('spinbutton', { name: 'Bench Press 13 tekrar ağırlığı' })).toHaveValue(65)
+    fireEvent.change(input, { target: { value: '70' } })
 
-    fireEvent.click(screen.getByLabelText('Düzenlemeyi iptal et'))
+    fireEvent.click(screen.getByLabelText('Düzenlemeyi kapat'))
     expect(input).toBeDisabled()
+
+    await new Promise((r) => setTimeout(r, 100))
+    const updatedSession = JSON.parse(localStorage.getItem('workout-data')).sessions[0]
+    expect(updatedSession.sets).toContainEqual({
+      exerciseId: 1,
+      exerciseName: 'Bench Press',
+      reps: 15,
+      weight: 70,
+    })
+    expect(updatedSession.sets).toContainEqual({ exerciseId: 1, reps: 13, weight: 65 })
+    expect(updatedSession.sets).toContainEqual({ exerciseId: 2, reps: 15, weight: 45 })
+  })
+
+  it('shows and preserves old session exercises outside the current schedule when edit mode closes unchanged', async () => {
+    const yesterday = addDays(today(), -1)
+    const yesterdayDay = new Date(yesterday + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    const oldSet = {
+      exerciseId: 2,
+      exerciseName: 'Squats',
+      reps: 15,
+      weight: 80,
+    }
+    const sessions = [{
+      id: 'session-1',
+      date: yesterday,
+      day: yesterdayDay,
+      sets: [oldSet],
+    }]
+    renderLogWorkout('/log', { [yesterdayDay]: [1] }, sessions)
+    fireEvent.click(screen.getByText(formatDateLabel(yesterday)))
+
+    expect(screen.getByText('Squats')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Seansı düzenle'))
+    expect(screen.getByRole('spinbutton', { name: 'Squats 15 tekrar ağırlığı' })).toHaveValue(80)
+    expect(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })).toHaveValue(null)
+
+    fireEvent.click(screen.getByLabelText('Düzenlemeyi kapat'))
+    await new Promise((r) => setTimeout(r, 100))
+
+    const updatedSession = JSON.parse(localStorage.getItem('workout-data')).sessions[0]
+    expect(updatedSession.sets).toEqual([oldSet])
   })
 
   it('allows adding a new session to a past date with no record', async () => {
@@ -404,12 +537,12 @@ describe('LogWorkout - Edit past session', () => {
     expect(input).not.toBeDisabled()
     fireEvent.change(input, { target: { value: '60' } })
 
-    fireEvent.click(screen.getByText('Seansı Tamamla'))
     await new Promise((r) => setTimeout(r, 100))
 
     const data = JSON.parse(localStorage.getItem('workout-data'))
     expect(data.sessions).toHaveLength(1)
     expect(data.sessions[0].sets[0].weight).toBe(60)
+    expect(data.sessions[0].sets[0].exerciseName).toBe('Bench Press')
     expect(data.sessions[0].date).toBe(yesterday)
   })
 })
@@ -426,119 +559,50 @@ describe('LogWorkout - URL routing', () => {
   })
 })
 
-describe('LogWorkout - Draft auto-save', () => {
-  it('restores draft from localStorage on page load', () => {
-    const todayDate = today()
-    const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
-    const draft = {
-      date: todayDate,
-      exerciseSets: {
-        1: [
-          { exerciseId: 1, reps: 15, weight: 60 },
-          { exerciseId: 1, reps: 13, weight: 65 },
-          { exerciseId: 1, reps: 11, weight: 70 },
-          { exerciseId: 1, reps: 9, weight: 75 },
-          { exerciseId: 1, reps: 7, weight: 80 },
-        ],
-      },
-    }
-    localStorage.setItem('workout-draft', JSON.stringify(draft))
-    renderLogWorkout('/log', { [todayDay]: [1] })
-
-    fireEvent.click(screen.getByText('Bench Press'))
-    expect(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })).toHaveValue(60)
-    expect(screen.getByRole('spinbutton', { name: 'Bench Press 13 tekrar ağırlığı' })).toHaveValue(65)
-  })
-
-  it('does not restore draft for a different date', () => {
-    const draft = {
-      date: '2020-01-01',
-      exerciseSets: {
-        1: [
-          { exerciseId: 1, reps: 15, weight: 99 },
-        ],
-      },
-    }
-    localStorage.setItem('workout-draft', JSON.stringify(draft))
-    renderLogWorkout('/log', { Pazartesi: [1] })
-    const monday = getMonday(today())
-    fireEvent.click(screen.getByText(formatDateLabel(monday)))
-    fireEvent.click(screen.getByText('Bench Press'))
-    expect(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })).toHaveValue(null)
-  })
-
-  it('existing session takes priority over draft', () => {
-    const todayDate = today()
-    const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
-    const sessions = [{
-      id: 'session-1',
-      date: todayDate,
-      day: todayDay,
-      sets: [
-        { exerciseId: 1, reps: 15, weight: 50 },
-        { exerciseId: 1, reps: 13, weight: 55 },
-      ],
-    }]
-    const draft = {
-      date: todayDate,
-      exerciseSets: {
-        1: [
-          { exerciseId: 1, reps: 15, weight: 99 },
-          { exerciseId: 1, reps: 13, weight: 99 },
-        ],
-      },
-    }
-    localStorage.setItem('workout-draft', JSON.stringify(draft))
-    renderLogWorkout('/log', { [todayDay]: [1] }, sessions)
-
-    fireEvent.click(screen.getByText('Bench Press'))
-    expect(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })).toHaveValue(50)
-    expect(screen.getByRole('spinbutton', { name: 'Bench Press 13 tekrar ağırlığı' })).toHaveValue(55)
-  })
-
-  it('inputs remain populated after completing session', async () => {
+describe('LogWorkout - Auto-save', () => {
+  it('saves a session to local storage as soon as a value is entered', async () => {
     const todayDate = today()
     const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
     renderLogWorkout('/log', { [todayDay]: [1] })
 
-    fireEvent.click(screen.getByText(formatDateLabel(today())))
+    fireEvent.click(screen.getByText('Bench Press'))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' }), { target: { value: '60' } })
+    await new Promise((r) => setTimeout(r, 100))
+
+    const data = JSON.parse(localStorage.getItem('workout-data'))
+    expect(data.sessions).toHaveLength(1)
+    expect(data.sessions[0].date).toBe(todayDate)
+    expect(data.sessions[0].sets).toEqual([{ exerciseId: 1, exerciseName: 'Bench Press', reps: 15, weight: 60 }])
+    expect(localStorage.getItem('workout-draft')).toBeNull()
+  })
+
+  it('updates the same session and the total on every change', async () => {
+    const todayDay = new Date(today() + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
+    renderLogWorkout('/log', { [todayDay]: [1] })
+
     fireEvent.click(screen.getByText('Bench Press'))
     const input = screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })
     fireEvent.change(input, { target: { value: '60' } })
-
-    const completeButton = screen.getByText('Seansı Tamamla')
-    fireEvent.click(completeButton)
-
+    expect(screen.getByText('900 kg')).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: '70' } })
+    expect(screen.getByText('1,050 kg')).toBeInTheDocument()
     await new Promise((r) => setTimeout(r, 100))
 
-    expect(input).toHaveValue(60)
+    const data = JSON.parse(localStorage.getItem('workout-data'))
+    expect(data.sessions).toHaveLength(1)
+    expect(data.sessions[0].sets[0].weight).toBe(70)
   })
 
-  it('draft is cleared after completing session', async () => {
-    const todayDate = today()
-    const todayDay = new Date(todayDate + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
-    const draft = {
-      date: todayDate,
-      exerciseSets: {
-        1: [
-          { exerciseId: 1, reps: 15, weight: 60 },
-          { exerciseId: 1, reps: 13, weight: 65 },
-          { exerciseId: 1, reps: 11, weight: 70 },
-          { exerciseId: 1, reps: 9, weight: 75 },
-          { exerciseId: 1, reps: 7, weight: 80 },
-        ],
-      },
-    }
-    localStorage.setItem('workout-draft', JSON.stringify(draft))
+  it('removes the session when all values are cleared', async () => {
+    const todayDay = new Date(today() + 'T12:00:00').toLocaleString('tr-TR', { weekday: 'long' })
     renderLogWorkout('/log', { [todayDay]: [1] })
 
-    fireEvent.click(screen.getByText(formatDateLabel(today())))
-
-    const completeButton = screen.getByText('Seansı Tamamla')
-    fireEvent.click(completeButton)
-
+    fireEvent.click(screen.getByText('Bench Press'))
+    const input = screen.getByRole('spinbutton', { name: 'Bench Press 15 tekrar ağırlığı' })
+    fireEvent.change(input, { target: { value: '60' } })
+    fireEvent.change(input, { target: { value: '' } })
     await new Promise((r) => setTimeout(r, 100))
 
-    expect(localStorage.getItem('workout-draft')).toBeNull()
+    expect(JSON.parse(localStorage.getItem('workout-data')).sessions).toHaveLength(0)
   })
 })

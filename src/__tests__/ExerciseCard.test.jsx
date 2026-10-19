@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import ExerciseCard from '../components/ExerciseCard'
@@ -53,7 +53,40 @@ describe('ExerciseCard', () => {
     render(<ExerciseCard exerciseId={1} exerciseName="Bench Press" onChange={() => {}} />)
     expandCard()
     const kgLabels = screen.getAllByText('kg')
-    expect(kgLabels).toHaveLength(PYRAMID_REPS.length)
+    expect(kgLabels).toHaveLength(PYRAMID_REPS.length + 1)
+  })
+
+  it('shows the previous weight and its calculated target in each rep row', () => {
+    render(
+      <ExerciseCard
+        exerciseId={1}
+        exerciseName="Bench Press"
+        onChange={() => {}}
+        previousWeights={[5, 5, 5, 5, 5]}
+        previousDate="2026-10-01"
+        targetIncrement={1}
+      />,
+    )
+    expandCard()
+    expect(screen.getAllByText('5 kg')).toHaveLength(PYRAMID_REPS.length)
+    expect(screen.getAllByText('Hedef 6 kg')).toHaveLength(PYRAMID_REPS.length)
+  })
+
+  it('reports target increment edits to the exercise', () => {
+    const onTargetIncrementChange = vi.fn()
+    render(
+      <ExerciseCard
+        exerciseId={1}
+        exerciseName="Bench Press"
+        onChange={() => {}}
+        onTargetIncrementChange={onTargetIncrementChange}
+      />,
+    )
+    expandCard()
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Bench Press hedef artışı' }), {
+      target: { value: '1' },
+    })
+    expect(onTargetIncrementChange).toHaveBeenCalledWith(1)
   })
 
   it('renders weight input per rep row with kg suffix when expanded', () => {

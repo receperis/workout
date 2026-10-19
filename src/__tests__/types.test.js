@@ -44,6 +44,17 @@ describe('isExercise', () => {
     expect(isExercise({ id: 1, name: 'Bench Press' })).toBe(true)
   })
 
+  it('accepts a non-negative target increment', () => {
+    expect(isExercise({ id: 1, name: 'Bench Press', targetIncrement: 1 })).toBe(true)
+    expect(isExercise({ id: 1, name: 'Bench Press', targetIncrement: 0 })).toBe(true)
+  })
+
+  it('rejects an invalid target increment', () => {
+    expect(isExercise({ id: 1, name: 'Bench Press', targetIncrement: -1 })).toBe(false)
+    expect(isExercise({ id: 1, name: 'Bench Press', targetIncrement: '1' })).toBe(false)
+    expect(isExercise({ id: 1, name: 'Bench Press', targetIncrement: Infinity })).toBe(false)
+  })
+
   it('returns false for null', () => {
     expect(isExercise(null)).toBe(false)
   })
@@ -168,6 +179,12 @@ describe('isWorkoutSession', () => {
 
   it('returns true for all days of the week', () => {
     for (const day of DAYS_OF_WEEK) {
+      expect(isWorkoutSession({ ...validSession, day })).toBe(true)
+    }
+  })
+
+  it('accepts English weekday names from synced sessions', () => {
+    for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
       expect(isWorkoutSession({ ...validSession, day })).toBe(true)
     }
   })

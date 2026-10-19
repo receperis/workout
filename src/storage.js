@@ -2,7 +2,6 @@ import { EMPTY_WORKOUT_DATA } from './types'
 
 const STORAGE_KEY = 'workout-data'
 const FILE_ID_KEY = 'google-drive-file-id'
-const DRAFT_KEY = 'workout-draft'
 
 /**
  * Migrate old format (string-based exercises) to new format (object-based with IDs).
@@ -66,53 +65,6 @@ export function saveData(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   } catch {
     // Silently fail if localStorage is full or unavailable
-  }
-}
-
-/**
- * Clear workout data from localStorage, keeping the Drive file ID.
- */
-export function clearSessionData() {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // Silently fail
-  }
-}
-
-/**
- * @param {string} date
- * @param {Record<number, import('./types').WorkoutSet[]>} exerciseSets
- */
-export function saveDraft(date, exerciseSets) {
-  try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ date, exerciseSets }))
-  } catch {
-    // Silently fail
-  }
-}
-
-/**
- * @returns {{ date: string, exerciseSets: Record<number, import('./types').WorkoutSet[]> } | null}
- */
-export function loadDraft() {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY)
-    if (raw === null) return null
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
-/**
- * Remove the in-progress draft from localStorage.
- */
-export function clearDraft() {
-  try {
-    localStorage.removeItem(DRAFT_KEY)
-  } catch {
-    // Silently fail
   }
 }
 

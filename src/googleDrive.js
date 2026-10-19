@@ -1,4 +1,4 @@
-import { EMPTY_WORKOUT_DATA, isWorkoutData } from './types'
+import { EMPTY_WORKOUT_DATA, isWorkoutData, normalizeSessionDay } from './types'
 
 const GIS_URL = 'https://accounts.google.com/gsi/client'
 const GAPI_URL = 'https://apis.google.com/js/api.js'
@@ -204,7 +204,13 @@ export async function loadFromDrive(fileId) {
   try {
     const parsed = JSON.parse(text)
     if (!isWorkoutData(parsed)) return EMPTY_WORKOUT_DATA
-    return parsed
+    return {
+      ...parsed,
+      sessions: parsed.sessions.map((session) => ({
+        ...session,
+        day: normalizeSessionDay(session.day),
+      })),
+    }
   } catch {
     return EMPTY_WORKOUT_DATA
   }
